@@ -1,0 +1,193 @@
+import { InvoiceStatus, NotificationType, ProjectStatus, QuotationStatus, TaskStatus } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { HttpError } from '@/utils/http-error';
+import { recordAudit } from '@/utils/audit';
+import { notify } from '@/utils/notify';
+import { generateReferenceNumber } from '@/utils/numbering';
+import { AuthUser } from '@/middleware/auth';
+
+/** BR-PROJ-01: a Project may only be created from an Approved Quotation. */
+export async function createProjectFromQuotation(actor: AuthUser, input: { quotationId: string; projectManagerId: string; startDate?: Date; targetEndDate?: Date }) {
+  const quotation = await prisma.quotation.findUnique({ where: { id: input.quotationId } });
+  if (!quotation) throw HttpError.notFound('Quotation not found');
+  if (quotation.status !== QuotationStatus.APPROVED) {
+    throw HttpError.badRequest('A Project can only be created from an Approved Quotation');
+  }
+
+  const existing = await prisma.project.findUnique({ where: { quotationId: input.quotationId } });
+  if (existing) throw HttpError.conflict('A Project already exists for this Quotation');
+
+  const projectNo = await generateReferenceNumber('PRJ', 'project');
+
+  const project = await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        projectNo,
+        quotationId: input.quotationId,
+        customerId: quotation.customerId,
+        projectManagerId: input.projectManagerId,
+        startDate: input.startDate,
+        targetEndDate: input.targetEndDate,
+        status: ProjectStatus.PLANNING,
+      },
+    });
+    await tx.serviceRequest.update({ where: { id: quotation.serviceRequestId }, data: { status: 'CONVERTED_TO_PROJECT' } });
+    return created;
+  });
+
+  await notify({
+    userId: input.projectManagerId,
+    type: NotificationType.PROJECT_STATUS_CHANGED,
+    title: 'New Project assigned to you',
+    body: project.projectNo,
+    entityType: 'Project',
+    entityId: project.id,
+  });
+
+  await recordAudit({ actorId: actor.id, action: 'CREATE', entityType: 'Project', entityId: project.id, after: project });
+  return project;
+}
+
+export async function getProjectById(id: string) {
+  const project = await prisma.project.findUnique({
+    where: { id },
+    include: {
+      customer: true,
+      quotation: { include: { lineItems: true } },
+      projectManager: { select: { id: true, fullName: true, email: true } },
+      supervisors: { include: { user: { select: { id: true, fullName: true } } } },
+      milestones: true,
+      documents: true,
+      tasks: { include: { assignments: { include: { technician: { select: { id: true, fullName: true } } } } } },
+      invoices: true,
+    },
+  });
+  if (!project) throw HttpError.notFound('Project not found');
+  return project;
+}
+
+export async function listProjects(filters: { status?: ProjectStatus; projectManagerId?: string; customerId?: string; page: number; pageSize: number }) {
+  const where = {
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.projectManagerId ? { projectManagerId: filters.projectManagerId } : {}),
+    ...(filters.customerId ? { customerId: filters.customerId } : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      include: { customer: true, projectManager: { select: { id: true, fullName: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+    }),
+    prisma.project.count({ where }),
+  ]);
+  return { items, total, page: filters.page, pageSize: filters.pageSize };
+}
+
+export async function updateProject(actor: AuthUser, id: string, input: { projectManagerId?: string; startDate?: Date; targetEndDate?: Date }) {
+  const before = await getProjectById(id);
+  const project = await prisma.project.update({ where: { id }, data: input });
+  await recordAudit({ actorId: actor.id, action: 'UPDATE', entityType: 'Project', entityId: id, before, after: project });
+  return project;
+}
+
+export async function addSupervisor(actor: AuthUser, id: string, userId: string) {
+  await getProjectById(id);
+  const supervisor = await prisma.projectSupervisor.create({ data: { projectId: id, userId } });
+  await notify({ userId, type: NotificationType.PROJECT_STATUS_CHANGED, title: 'You have been added as Supervisor', body: id, entityType: 'Project', entityId: id });
+  await recordAudit({ actorId: actor.id, action: 'ADD_SUPERVISOR', entityType: 'Project', entityId: id, after: supervisor });
+  return supervisor;
+}
+
+export async function addMilestone(actor: AuthUser, id: string, input: { name: string; targetDate?: Date }) {
+  await getProjectById(id);
+  const milestone = await prisma.projectMilestone.create({ data: { projectId: id, ...input } });
+  await recordAudit({ actorId: actor.id, action: 'CREATE', entityType: 'ProjectMilestone', entityId: milestone.id, after: milestone });
+  return milestone;
+}
+
+export async function completeMilestone(actor: AuthUser, milestoneId: string) {
+  const milestone = await prisma.projectMilestone.update({ where: { id: milestoneId }, data: { status: 'COMPLETED', completedAt: new Date() } });
+  await recordAudit({ actorId: actor.id, action: 'COMPLETE', entityType: 'ProjectMilestone', entityId: milestoneId, after: milestone });
+  return milestone;
+}
+
+export async function addDocument(actor: AuthUser, id: string, input: { fileUrl: string; fileName: string }) {
+  await getProjectById(id);
+  return prisma.projectDocument.create({ data: { projectId: id, uploadedById: actor.id, ...input } });
+}
+
+/** Recomputes completionPercent from Verified tasks; called after any Task status change. */
+export async function recalculateCompletion(projectId: string) {
+  const tasks = await prisma.task.findMany({ where: { projectId } });
+  if (tasks.length === 0) return;
+  const verified = tasks.filter((t) => t.status === TaskStatus.VERIFIED).length;
+  const completionPercent = Math.round((verified / tasks.length) * 10000) / 100;
+  await prisma.project.update({ where: { id: projectId }, data: { completionPercent } });
+}
+
+/** BR-PROJ-03: cannot complete a Project while any Task is not yet Verified. */
+export async function completeProject(actor: AuthUser, id: string) {
+  const project = await getProjectById(id);
+  const incomplete = project.tasks.filter((t) => t.status !== TaskStatus.VERIFIED);
+  if (incomplete.length > 0) {
+    throw HttpError.badRequest('Project has incomplete Tasks', { incompleteTaskIds: incomplete.map((t) => t.id) });
+  }
+
+  const updated = await prisma.project.update({ where: { id }, data: { status: ProjectStatus.COMPLETED, actualEndDate: new Date() } });
+
+  const customer = await prisma.customer.findUnique({ where: { id: project.customerId } });
+  if (customer?.userId) {
+    await notify({
+      userId: customer.userId,
+      type: NotificationType.FEEDBACK_REQUEST,
+      title: 'Your project is complete — we would love your feedback',
+      body: project.projectNo,
+      entityType: 'Project',
+      entityId: id,
+    });
+  }
+
+  await recordAudit({ actorId: actor.id, action: 'COMPLETE', entityType: 'Project', entityId: id, before: project, after: updated });
+  return updated;
+}
+
+/** BR-PROJ-04: cannot close until all Invoices are Paid (or explicitly written off — not modeled at V1, handled via Admin override). */
+export async function closeProject(actor: AuthUser, id: string, allowUnpaidOverride = false) {
+  const project = await getProjectById(id);
+  if (project.status !== ProjectStatus.COMPLETED) {
+    throw HttpError.badRequest('Only a Completed Project can be Closed');
+  }
+  const unpaid = project.invoices.filter((inv) => inv.status !== InvoiceStatus.PAID && inv.status !== InvoiceStatus.CANCELLED);
+  if (unpaid.length > 0 && !allowUnpaidOverride) {
+    throw HttpError.badRequest('Project has unpaid Invoices', { unpaidInvoiceIds: unpaid.map((i) => i.id) });
+  }
+
+  const updated = await prisma.project.update({ where: { id }, data: { status: ProjectStatus.CLOSED } });
+  await recordAudit({ actorId: actor.id, action: 'CLOSE', entityType: 'Project', entityId: id, before: project, after: updated });
+  return updated;
+}
+
+/** BR-PROJ-05: On Hold / Cancelled require a documented reason. */
+export async function holdProject(actor: AuthUser, id: string, reason: string) {
+  const before = await getProjectById(id);
+  const updated = await prisma.project.update({ where: { id }, data: { status: ProjectStatus.ON_HOLD, holdReason: reason } });
+  await recordAudit({ actorId: actor.id, action: 'HOLD', entityType: 'Project', entityId: id, before, after: updated });
+  return updated;
+}
+
+export async function cancelProject(actor: AuthUser, id: string, reason: string) {
+  const before = await getProjectById(id);
+  const updated = await prisma.project.update({ where: { id }, data: { status: ProjectStatus.CANCELLED, cancelReason: reason } });
+  await recordAudit({ actorId: actor.id, action: 'CANCEL', entityType: 'Project', entityId: id, before, after: updated });
+  return updated;
+}
+
+export async function customerSignOff(id: string) {
+  const project = await getProjectById(id);
+  if (project.status !== ProjectStatus.COMPLETED) {
+    throw HttpError.badRequest('Sign-off can only be recorded once the Project is Completed');
+  }
+  return prisma.project.update({ where: { id }, data: { customerSignOffAt: new Date() } });
+}

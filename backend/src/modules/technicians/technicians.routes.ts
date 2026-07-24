@@ -1,8 +1,61 @@
 import { Router } from 'express';
-import { requireAuth } from '@/middleware/auth';
+import { Role } from '@prisma/client';
+import { asyncHandler } from '@/utils/async-handler';
+import { validate } from '@/middleware/validate';
+import { requireAuth, requireRole } from '@/middleware/auth';
+import * as controller from './technicians.controller';
+import { calendarQuerySchema, decideLeaveSchema, listTechniciansSchema, requestLeaveSchema, updateTechnicianProfileSchema } from './technicians.schema';
 
-// TODO(Phase): full technicians module — placeholder until its phase is implemented.
 const router = Router();
 router.use(requireAuth);
+
+/**
+ * @openapi
+ * /technicians/leave-requests:
+ *   post:
+ *     summary: Technician requests leave/unavailability (FR-TECH-05)
+ *     tags: [Technicians]
+ */
+router.post('/leave-requests', requireRole(Role.TECHNICIAN), validate(requestLeaveSchema), asyncHandler(controller.requestLeave));
+
+const PLANNERS = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR] as const;
+router.use(requireRole(...PLANNERS));
+
+/**
+ * @openapi
+ * /technicians:
+ *   get:
+ *     summary: List/filter Technicians by skill and availability (FR-TECH-01..03)
+ *     tags: [Technicians]
+ */
+router.get('/', validate(listTechniciansSchema), asyncHandler(controller.listTechnicians));
+
+/**
+ * @openapi
+ * /technicians/schedule:
+ *   get:
+ *     summary: Unified scheduling calendar of inspections + tasks (FR-SCHED-01)
+ *     tags: [Technicians]
+ */
+router.get('/schedule', validate(calendarQuerySchema), asyncHandler(controller.getSchedule));
+
+router.get('/:id', asyncHandler(controller.getTechnician));
+router.patch('/:id', validate(updateTechnicianProfileSchema), asyncHandler(controller.updateTechnician));
+router.get('/:id/history', asyncHandler(controller.getHistory));
+router.get('/:id/productivity', asyncHandler(controller.getProductivity));
+
+/**
+ * @openapi
+ * /technicians/leave-requests/{leaveId}/decide:
+ *   post:
+ *     summary: Approve/reject a Technician leave request (FR-TECH-05)
+ *     tags: [Technicians]
+ */
+router.post(
+  '/leave-requests/:leaveId/decide',
+  requireRole(Role.SUPER_ADMIN, Role.ADMIN),
+  validate(decideLeaveSchema),
+  asyncHandler(controller.decideLeave),
+);
 
 export default router;
