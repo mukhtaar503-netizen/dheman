@@ -4,7 +4,7 @@ import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
 import * as controller from './dashboard.controller';
-import { pagedQuerySchema, paymentsQuerySchema, rangeQuerySchema, seriesQuerySchema } from './dashboard.schema';
+import { customersQuerySchema, pagedQuerySchema, paymentsQuerySchema, rangeQuerySchema, seriesQuerySchema } from './dashboard.schema';
 
 const router = Router();
 
@@ -77,7 +77,7 @@ router.get('/activity', validate(pagedQuerySchema), asyncHandler(controller.acti
  *     summary: Recently registered Customers, paginated
  *     tags: [Dashboard]
  */
-router.get('/customers', validate(pagedQuerySchema), asyncHandler(controller.customers));
+router.get('/customers', validate(customersQuerySchema), asyncHandler(controller.customers));
 
 /**
  * @openapi

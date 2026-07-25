@@ -11,6 +11,7 @@ import {
   createMilestoneSchema,
   createProjectFromQuotationSchema,
   holdOrCancelSchema,
+  listProjectsSchema,
   updateProjectSchema,
 } from './projects.schema';
 
@@ -24,7 +25,7 @@ router.use(requireAuth);
  *     summary: Customer views their own Projects (FR-PROJ-08)
  *     tags: [Projects]
  */
-router.get('/me', requireRole(Role.CUSTOMER), asyncHandler(controller.listOwnProjects));
+router.get('/me', requireRole(Role.CUSTOMER), validate(listProjectsSchema), asyncHandler(controller.listOwnProjects));
 
 /**
  * @openapi
@@ -46,7 +47,7 @@ router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.
  *     summary: List Projects (FR-PROJ-02)
  *     tags: [Projects]
  */
-router.get('/', asyncHandler(controller.listProjects));
+router.get('/', validate(listProjectsSchema), asyncHandler(controller.listProjects));
 
 router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER));
 

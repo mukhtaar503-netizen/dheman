@@ -29,8 +29,8 @@ export async function activity(req: Request, res: Response) {
 }
 
 export async function customers(req: Request, res: Response) {
-  const { page, pageSize } = req.query as any;
-  res.status(200).json(await customersService.listCustomers({ page, pageSize }));
+  const { page, pageSize, search } = req.query as any;
+  res.status(200).json(await customersService.listCustomers({ page, pageSize, search }));
 }
 
 export async function payments(req: Request, res: Response) {

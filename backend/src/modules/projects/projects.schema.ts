@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProjectStatus } from '@prisma/client';
 
 export const createProjectFromQuotationSchema = z.object({
   body: z.object({
@@ -49,4 +50,16 @@ export const addDocumentSchema = z.object({
   body: z.object({ fileUrl: z.string().url(), fileName: z.string().min(1) }),
   query: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
+});
+
+export const listProjectsSchema = z.object({
+  body: z.object({}).optional(),
+  query: z.object({
+    status: z.nativeEnum(ProjectStatus).optional(),
+    projectManagerId: z.string().uuid().optional(),
+    customerId: z.string().uuid().optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  }),
+  params: z.object({}).optional(),
 });

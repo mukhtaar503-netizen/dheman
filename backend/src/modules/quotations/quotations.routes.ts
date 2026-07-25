@@ -4,7 +4,7 @@ import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
 import * as controller from './quotations.controller';
-import { createQuotationSchema, respondQuotationSchema, reviseQuotationSchema } from './quotations.schema';
+import { createQuotationSchema, listQuotationsSchema, respondQuotationSchema, reviseQuotationSchema } from './quotations.schema';
 
 const router = Router();
 router.use(requireAuth);
@@ -16,7 +16,7 @@ router.use(requireAuth);
  *     summary: Customer views their own Quotations (FR-QUOTE-07)
  *     tags: [Quotations]
  */
-router.get('/me', requireRole(Role.CUSTOMER), asyncHandler(controller.listOwnQuotations));
+router.get('/me', requireRole(Role.CUSTOMER), validate(listQuotationsSchema), asyncHandler(controller.listOwnQuotations));
 
 /**
  * @openapi
@@ -47,7 +47,7 @@ router.post('/', validate(createQuotationSchema), asyncHandler(controller.create
  *     summary: List Quotations
  *     tags: [Quotations]
  */
-router.get('/', asyncHandler(controller.listQuotations));
+router.get('/', validate(listQuotationsSchema), asyncHandler(controller.listQuotations));
 
 /**
  * @openapi

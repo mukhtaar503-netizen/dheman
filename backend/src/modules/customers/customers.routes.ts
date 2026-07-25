@@ -15,6 +15,8 @@ import {
 
 const router = Router();
 const STAFF = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER] as const;
+// R7 Accountant: "View Customer and Project records (read-only) for financial context."
+const READ_ONLY_EXTRA = [Role.ACCOUNTANT] as const;
 
 router.use(requireAuth);
 
@@ -50,6 +52,24 @@ router.patch(
   }),
 );
 
+/**
+ * @openapi
+ * /customers:
+ *   get:
+ *     summary: List/search Customers (FR-CUST-01) — Accountant gets read-only access (R7)
+ *     tags: [Customers]
+ */
+router.get('/', requireRole(...STAFF, ...READ_ONLY_EXTRA), validate(listCustomersSchema), asyncHandler(customersController.listCustomers));
+
+/**
+ * @openapi
+ * /customers/{id}:
+ *   get:
+ *     summary: Get a Customer with full history (FR-CUST-03) — Accountant gets read-only access (R7)
+ *     tags: [Customers]
+ */
+router.get('/:id', requireRole(...STAFF, ...READ_ONLY_EXTRA), asyncHandler(customersController.getCustomer));
+
 router.use(requireRole(...STAFF));
 
 /**
@@ -60,24 +80,6 @@ router.use(requireRole(...STAFF));
  *     tags: [Customers]
  */
 router.post('/', validate(createCustomerSchema), asyncHandler(customersController.createCustomer));
-
-/**
- * @openapi
- * /customers:
- *   get:
- *     summary: List/search Customers (FR-CUST-01)
- *     tags: [Customers]
- */
-router.get('/', validate(listCustomersSchema), asyncHandler(customersController.listCustomers));
-
-/**
- * @openapi
- * /customers/{id}:
- *   get:
- *     summary: Get a Customer with full history (FR-CUST-03)
- *     tags: [Customers]
- */
-router.get('/:id', asyncHandler(customersController.getCustomer));
 
 /**
  * @openapi

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { QuotationStatus } from '@prisma/client';
 
 const lineItemSchema = z.object({
   serviceCategoryId: z.string().uuid().optional(),
@@ -29,4 +30,14 @@ export const respondQuotationSchema = z.object({
   }),
   query: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
+});
+
+export const listQuotationsSchema = z.object({
+  body: z.object({}).optional(),
+  query: z.object({
+    status: z.nativeEnum(QuotationStatus).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  }),
+  params: z.object({}).optional(),
 });
