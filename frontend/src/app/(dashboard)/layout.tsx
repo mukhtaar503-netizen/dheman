@@ -25,7 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar user={user} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} onMenuClick={() => setSidebarOpen(true)} onLogout={logout} />
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 bg-slate-50 p-4 dark:bg-background sm:p-6">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>

@@ -25,6 +25,15 @@ router.get('/summary', validate(rangeQuerySchema), asyncHandler(controller.summa
 
 /**
  * @openapi
+ * /dashboard/upcoming:
+ *   get:
+ *     summary: Milestone/deadline countdown + headline figures for the dashboard hero section
+ *     tags: [Dashboard]
+ */
+router.get('/upcoming', asyncHandler(controller.upcoming));
+
+/**
+ * @openapi
  * /dashboard/projects:
  *   get:
  *     summary: Project Statistics — Bar Chart series, grouped by status

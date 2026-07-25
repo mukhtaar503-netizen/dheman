@@ -218,3 +218,46 @@ export async function getLoginActivity(page: number, pageSize: number) {
   ]);
   return { items, total, page, pageSize };
 }
+
+function daysUntil(date: Date) {
+  return Math.ceil((date.getTime() - Date.now()) / (24 * 60 * 60_000));
+}
+
+/** Milestone/deadline countdown panel + headline figures for the dashboard hero section. */
+export async function getUpcomingSummary(user: AuthUser) {
+  const now = new Date();
+  const technicianScope = user.role === Role.TECHNICIAN ? { assignments: { some: { technicianId: user.id } } } : {};
+
+  const [nextMilestone, nextTask, pendingQuotationsAgg, inProgressTaskCount, monthlyRevenue] = await Promise.all([
+    prisma.projectMilestone.findFirst({
+      where: { status: { in: ['PENDING', 'IN_PROGRESS'] }, targetDate: { gte: now } },
+      orderBy: { targetDate: 'asc' },
+      include: { project: { select: { projectNo: true } } },
+    }),
+    prisma.task.findFirst({
+      where: { status: { notIn: [TaskStatus.VERIFIED] }, dueDate: { gte: now }, ...technicianScope },
+      orderBy: { dueDate: 'asc' },
+      select: { title: true, dueDate: true, project: { select: { projectNo: true } } },
+    }),
+    prisma.quotation.aggregate({ _sum: { total: true }, _count: true, where: { status: QuotationStatus.SENT } }),
+    prisma.task.count({ where: { status: { in: [TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS] }, ...technicianScope } }),
+    sumPayments(new Date(now.getFullYear(), now.getMonth(), 1), now),
+  ]);
+
+  const isTechnician = user.role === Role.TECHNICIAN;
+
+  return {
+    nextMilestone: nextMilestone
+      ? { label: `${nextMilestone.project.projectNo} — ${nextMilestone.name}`, daysLeft: daysUntil(nextMilestone.targetDate!) }
+      : null,
+    nextDeadline: nextTask ? { label: `${nextTask.project.projectNo} — ${nextTask.title}`, daysLeft: daysUntil(nextTask.dueDate!) } : null,
+    inProgressTaskCount,
+    ...(isTechnician
+      ? {}
+      : {
+          pendingQuotationsValue: round2(Number(pendingQuotationsAgg._sum.total ?? 0)),
+          pendingQuotationsCount: pendingQuotationsAgg._count,
+          monthlyRevenue,
+        }),
+  };
+}

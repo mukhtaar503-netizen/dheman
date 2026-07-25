@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, ClipboardList, FileText, FolderKanban, Wrench, Receipt, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BRAND } from '@/lib/brand';
 import { NAV_ITEMS } from './nav-items';
 import type { AuthUser } from '@/types';
 
@@ -25,17 +26,23 @@ export function Sidebar({ user, open, onClose }: { user: AuthUser; open: boolean
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} />}
       <aside
+        style={{ backgroundColor: BRAND.navyDark }}
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card p-4 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col px-3 py-5 text-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="mb-6 flex items-center justify-between px-2">
-          <div>
-            <p className="font-semibold leading-tight">Dheman SMS</p>
-            <p className="text-xs text-muted-foreground">Service Management</p>
+        <div className="mb-8 flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg font-bold text-white" style={{ backgroundColor: BRAND.orange }}>
+              D
+            </div>
+            <div>
+              <p className="text-sm font-semibold leading-tight">Dheman</p>
+              <p className="text-[10px] text-white/50">Service Mgmt</p>
+            </div>
           </div>
-          <button className="lg:hidden" onClick={onClose} aria-label="Close menu">
+          <button className="text-white/70 lg:hidden" onClick={onClose} aria-label="Close menu">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -50,8 +57,8 @@ export function Sidebar({ user, open, onClose }: { user: AuthUser; open: boolean
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                  active ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                  active ? 'bg-white/10 font-medium text-white' : 'text-white/60 hover:bg-white/5 hover:text-white',
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -61,8 +68,8 @@ export function Sidebar({ user, open, onClose }: { user: AuthUser; open: boolean
           })}
         </nav>
 
-        <div className="mt-6 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">{user.fullName}</p>
+        <div className="mt-6 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/70">
+          <p className="truncate font-medium text-white">{user.fullName}</p>
           <p>{user.role.replaceAll('_', ' ')}</p>
         </div>
       </aside>

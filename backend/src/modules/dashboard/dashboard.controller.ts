@@ -7,6 +7,10 @@ export async function summary(req: Request, res: Response) {
   res.status(200).json(await service.getSummary(req.user!, req.query as any));
 }
 
+export async function upcoming(req: Request, res: Response) {
+  res.status(200).json(await service.getUpcomingSummary(req.user!));
+}
+
 export async function revenue(req: Request, res: Response) {
   res.status(200).json(await service.getRevenueSeries(req.query as any, (req.query.granularity as any) ?? 'day'));
 }

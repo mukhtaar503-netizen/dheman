@@ -2,7 +2,11 @@
 
 import { useAuth } from '@/hooks/use-auth';
 import { GlobalFilterBar } from '@/components/dashboard/global-filter-bar';
-import { KpiGrid } from '@/components/dashboard/kpi-grid';
+import { StatTiles } from '@/components/dashboard/stat-tiles';
+import { UpcomingPanel } from '@/components/dashboard/upcoming-panel';
+import { CompanyOverviewCard } from '@/components/dashboard/company-overview-card';
+import { HeroValueTile } from '@/components/dashboard/hero-value-tile';
+import { PerformancePanel } from '@/components/dashboard/performance-panel';
 import { RevenueChart } from '@/components/dashboard/charts/revenue-chart';
 import { ProjectsChart } from '@/components/dashboard/charts/projects-chart';
 import { ExpensesChart } from '@/components/dashboard/charts/expenses-chart';
@@ -28,9 +32,33 @@ export default function DashboardPage() {
         <GlobalFilterBar />
       </div>
 
-      <ErrorBoundary fallbackTitle="Couldn't load KPI cards">
-        <KpiGrid />
-      </ErrorBoundary>
+      {/* Hero row: stat tiles + project status (2/3) alongside upcoming/overview/performance (1/3) */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <ErrorBoundary fallbackTitle="Couldn't load stat tiles">
+            <StatTiles />
+          </ErrorBoundary>
+          <ErrorBoundary fallbackTitle="Couldn't load project status">
+            <ProjectsChart />
+          </ErrorBoundary>
+        </div>
+        <div className="space-y-4">
+          <ErrorBoundary fallbackTitle="Couldn't load upcoming panel">
+            <UpcomingPanel />
+          </ErrorBoundary>
+          <ErrorBoundary fallbackTitle="Couldn't load company overview">
+            <CompanyOverviewCard />
+          </ErrorBoundary>
+          {canSeeFinance && (
+            <ErrorBoundary fallbackTitle="Couldn't load revenue tile">
+              <HeroValueTile />
+            </ErrorBoundary>
+          )}
+          <ErrorBoundary fallbackTitle="Couldn't load performance panel">
+            <PerformancePanel />
+          </ErrorBoundary>
+        </div>
+      </div>
 
       {canSeeFinance && (
         <>
@@ -38,30 +66,20 @@ export default function DashboardPage() {
             <ErrorBoundary fallbackTitle="Couldn't load revenue chart">
               <RevenueChart />
             </ErrorBoundary>
-            <ErrorBoundary fallbackTitle="Couldn't load project chart">
-              <ProjectsChart />
-            </ErrorBoundary>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
             <ErrorBoundary fallbackTitle="Couldn't load expense chart">
               <ExpensesChart />
             </ErrorBoundary>
-            <ErrorBoundary fallbackTitle="Couldn't load service distribution">
-              <ServicesChart />
-            </ErrorBoundary>
           </div>
+          <ErrorBoundary fallbackTitle="Couldn't load service distribution">
+            <ServicesChart />
+          </ErrorBoundary>
         </>
       )}
 
       {!canSeeFinance && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ErrorBoundary fallbackTitle="Couldn't load project chart">
-            <ProjectsChart />
-          </ErrorBoundary>
-          <ErrorBoundary fallbackTitle="Couldn't load service distribution">
-            <ServicesChart />
-          </ErrorBoundary>
-        </div>
+        <ErrorBoundary fallbackTitle="Couldn't load service distribution">
+          <ServicesChart />
+        </ErrorBoundary>
       )}
 
       {canSeeFinance && (

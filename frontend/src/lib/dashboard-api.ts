@@ -21,8 +21,18 @@ function qs(params: Record<string, string | number | undefined>) {
   return str ? `?${str}` : '';
 }
 
+export interface UpcomingSummary {
+  nextMilestone: { label: string; daysLeft: number } | null;
+  nextDeadline: { label: string; daysLeft: number } | null;
+  inProgressTaskCount: number;
+  pendingQuotationsValue?: number;
+  pendingQuotationsCount?: number;
+  monthlyRevenue?: number;
+}
+
 export const dashboardApi = {
   summary: (params: Record<string, string | undefined>) => api.get<DashboardSummary>(`/dashboard/summary${qs(params)}`),
+  upcoming: () => api.get<UpcomingSummary>('/dashboard/upcoming'),
   revenue: (params: Record<string, string | undefined>) => api.get<RevenuePoint[]>(`/dashboard/revenue${qs(params)}`),
   projects: (params: Record<string, string | undefined>) => api.get<ProjectStatPoint[]>(`/dashboard/projects${qs(params)}`),
   expenses: (params: Record<string, string | undefined>) => api.get<ExpensePoint[]>(`/dashboard/expenses${qs(params)}`),
