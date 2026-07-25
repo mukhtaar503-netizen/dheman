@@ -69,6 +69,45 @@ export async function listPayments(filters: { invoiceId?: string; customerId?: s
   });
 }
 
+/** Paginated/searchable/sortable variant backing the dashboard's Recent Payments table (FR-REP, Section "Recent Activity"). */
+export async function listPaymentsPaged(filters: {
+  search?: string;
+  method?: PaymentMethod;
+  from?: Date;
+  to?: Date;
+  sortBy?: 'paidAt' | 'amount';
+  sortOrder?: 'asc' | 'desc';
+  page: number;
+  pageSize: number;
+}) {
+  const where = {
+    ...(filters.method ? { method: filters.method } : {}),
+    ...(filters.from || filters.to ? { paidAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { referenceNo: { contains: filters.search, mode: 'insensitive' as const } },
+            { customer: { fullName: { contains: filters.search, mode: 'insensitive' as const } } },
+            { invoice: { invoiceNo: { contains: filters.search, mode: 'insensitive' as const } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.payment.findMany({
+      where,
+      include: { customer: { select: { id: true, fullName: true } }, invoice: { select: { id: true, invoiceNo: true } } },
+      orderBy: { [filters.sortBy ?? 'paidAt']: filters.sortOrder ?? 'desc' },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+    }),
+    prisma.payment.count({ where }),
+  ]);
+
+  return { items, total, page: filters.page, pageSize: filters.pageSize };
+}
+
 export async function getPaymentById(id: string) {
   const payment = await prisma.payment.findUnique({ where: { id }, include: { invoice: true } });
   if (!payment) throw HttpError.notFound('Payment not found');

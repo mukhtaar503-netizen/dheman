@@ -5,6 +5,7 @@ import { env } from '@/config/env';
 import { HttpError } from '@/utils/http-error';
 import { hashPassword, verifyPassword } from '@/utils/password';
 import { generateRefreshToken, hashToken, signAccessToken } from '@/utils/tokens';
+import { recordAudit } from '@/utils/audit';
 import { LoginInput, RegisterCustomerInput } from './auth.schema';
 
 const MAX_FAILED_ATTEMPTS = 5;
@@ -81,6 +82,9 @@ export async function login(input: LoginInput) {
     where: { id: user.id },
     data: { failedLoginAttempts: 0, lockedUntil: null },
   });
+
+  // Powers the dashboard's Login Activity feed (GET /dashboard/login-activity).
+  await recordAudit({ actorId: user.id, action: 'LOGIN', entityType: 'User', entityId: user.id });
 
   const tokens = await issueTokenPair(user.id, user.role, user.email);
   return { user: sanitizeUser(user), ...tokens };

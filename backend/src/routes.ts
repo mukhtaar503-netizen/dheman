@@ -17,6 +17,7 @@ import paymentsRoutes from '@/modules/payments/payments.routes';
 import notificationsRoutes from '@/modules/notifications/notifications.routes';
 import reportsRoutes from '@/modules/reports/reports.routes';
 import auditRoutes from '@/modules/audit/audit.routes';
+import dashboardRoutes from '@/modules/dashboard/dashboard.routes';
 
 const router = Router();
 
@@ -47,5 +48,8 @@ router.use('/payments', paymentsRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/audit-logs', auditRoutes);
+
+// Enterprise ERP Dashboard (Admin/Manager/Technician/Sales views over the roles above)
+router.use('/dashboard', dashboardRoutes);
 
 export default router;
