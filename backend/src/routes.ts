@@ -18,12 +18,14 @@ import notificationsRoutes from '@/modules/notifications/notifications.routes';
 import reportsRoutes from '@/modules/reports/reports.routes';
 import auditRoutes from '@/modules/audit/audit.routes';
 import dashboardRoutes from '@/modules/dashboard/dashboard.routes';
+import rbacRoutes from '@/modules/rbac/rbac.routes';
 
 const router = Router();
 
 // Phase 1 — Foundation
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
+router.use(rbacRoutes); // defines /roles and /permissions directly
 router.use('/customers', customersRoutes);
 router.use('/settings', settingsRoutes);
 

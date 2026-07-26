@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './expenses.controller';
 import { createExpenseSchema, decideExpenseSchema, listExpensesSchema } from './expenses.schema';
 
 const router = Router();
-router.use(requireAuth, requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR, Role.ACCOUNTANT));
+router.use(requireAuth, requirePermission(PERMISSIONS.EXPENSES_SUBMIT));
 
 /**
  * @openapi
@@ -36,6 +37,6 @@ router.get('/:id', asyncHandler(controller.getExpense));
  *     summary: Approve or reject an Expense (FR-EXP-03, BR-EXP-01, BR-EXP-02) — Accountant/Admin only
  *     tags: [Expenses]
  */
-router.post('/:id/decide', requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT), validate(decideExpenseSchema), asyncHandler(controller.decideExpense));
+router.post('/:id/decide', requirePermission(PERMISSIONS.EXPENSES_APPROVE), validate(decideExpenseSchema), asyncHandler(controller.decideExpense));
 
 export default router;

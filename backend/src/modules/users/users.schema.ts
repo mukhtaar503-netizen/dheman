@@ -33,6 +33,15 @@ export const updateUserSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
 });
 
+export const updateOwnProfileSchema = z.object({
+  body: z.object({
+    fullName: z.string().min(2).optional(),
+    phone: z.string().optional(),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({}).optional(),
+});
+
 export const listUsersSchema = z.object({
   body: z.object({}).optional(),
   query: z.object({

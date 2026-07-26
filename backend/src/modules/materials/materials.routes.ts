@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './materials.controller';
 import { createMaterialEntrySchema } from './materials.schema';
 
 const router = Router();
-router.use(requireAuth, requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR, Role.TECHNICIAN));
+router.use(requireAuth, requirePermission(PERMISSIONS.MATERIALS_MANAGE));
 
 /**
  * @openapi

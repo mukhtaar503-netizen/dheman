@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './tasks.controller';
 import { addPhotoSchema, assignTechniciansSchema, createTaskSchema, logTimeSchema, reopenTaskSchema, updateTaskStatusSchema } from './tasks.schema';
 
@@ -18,8 +20,7 @@ router.use(requireAuth);
  */
 router.get('/me', requireRole(Role.TECHNICIAN), asyncHandler(controller.listMyTasks));
 
-const TECH_OR_UP = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR, Role.TECHNICIAN] as const;
-router.use(requireRole(...TECH_OR_UP));
+router.use(requirePermission(PERMISSIONS.TASKS_EXECUTE));
 
 router.get('/', asyncHandler(controller.listTasks));
 router.get('/:id', asyncHandler(controller.getTask));
@@ -60,7 +61,7 @@ router.post('/:id/photos', validate(addPhotoSchema), asyncHandler(controller.add
  */
 router.post('/:id/time-logs', validate(logTimeSchema), asyncHandler(controller.logTime));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR));
+router.use(requirePermission(PERMISSIONS.TASKS_MANAGE));
 
 /**
  * @openapi

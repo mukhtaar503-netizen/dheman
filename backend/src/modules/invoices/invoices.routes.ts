@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './invoices.controller';
 import { createInvoiceSchema, listInvoicesSchema, voidInvoiceSchema } from './invoices.schema';
 
@@ -18,9 +20,9 @@ router.use(requireAuth);
  */
 router.get('/me', requireRole(Role.CUSTOMER), asyncHandler(controller.listOwnInvoices));
 
-router.get('/:id', asyncHandler(controller.getInvoice));
+router.use(requirePermission(PERMISSIONS.INVOICES_MANAGE));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT));
+router.get('/:id', asyncHandler(controller.getInvoice));
 
 /**
  * @openapi

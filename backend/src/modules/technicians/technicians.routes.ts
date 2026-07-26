@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './technicians.controller';
 import { calendarQuerySchema, decideLeaveSchema, listTechniciansSchema, requestLeaveSchema, updateTechnicianProfileSchema } from './technicians.schema';
 
@@ -18,8 +20,7 @@ router.use(requireAuth);
  */
 router.post('/leave-requests', requireRole(Role.TECHNICIAN), validate(requestLeaveSchema), asyncHandler(controller.requestLeave));
 
-const PLANNERS = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR] as const;
-router.use(requireRole(...PLANNERS));
+router.use(requirePermission(PERMISSIONS.TECHNICIANS_MANAGE));
 
 /**
  * @openapi
@@ -53,7 +54,7 @@ router.get('/:id/productivity', asyncHandler(controller.getProductivity));
  */
 router.post(
   '/leave-requests/:leaveId/decide',
-  requireRole(Role.SUPER_ADMIN, Role.ADMIN),
+  requirePermission(PERMISSIONS.TECHNICIANS_APPROVE_LEAVE),
   validate(decideLeaveSchema),
   asyncHandler(controller.decideLeave),
 );

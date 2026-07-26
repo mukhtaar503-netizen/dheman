@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './inspections.controller';
 import { rescheduleInspectionSchema, scheduleInspectionSchema, submitInspectionSchema } from './inspections.schema';
 
@@ -27,14 +29,14 @@ router.get('/me', requireRole(Role.SITE_INSPECTOR), asyncHandler(controller.list
  */
 router.post(
   '/:id/submit',
-  requireRole(Role.SITE_INSPECTOR, Role.SUPER_ADMIN, Role.ADMIN),
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT),
   validate(submitInspectionSchema),
   asyncHandler(controller.submitInspection),
 );
 
-router.get('/:id', asyncHandler(controller.getInspection));
+router.get('/:id', requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT, PERMISSIONS.INSPECTIONS_MANAGE), asyncHandler(controller.getInspection));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER));
+router.use(requirePermission(PERMISSIONS.INSPECTIONS_MANAGE));
 
 /**
  * @openapi

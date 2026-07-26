@@ -1,18 +1,22 @@
 import { Request, Response } from 'express';
 import * as authService from './auth.service';
 
+function sessionContext(req: Request) {
+  return { userAgent: req.get('user-agent') ?? undefined, ipAddress: req.ip };
+}
+
 export async function register(req: Request, res: Response) {
-  const result = await authService.registerCustomer(req.body);
+  const result = await authService.registerCustomer(req.body, sessionContext(req));
   res.status(201).json(result);
 }
 
 export async function login(req: Request, res: Response) {
-  const result = await authService.login(req.body);
+  const result = await authService.login(req.body, sessionContext(req));
   res.status(200).json(result);
 }
 
 export async function refresh(req: Request, res: Response) {
-  const result = await authService.refreshTokens(req.body.refreshToken);
+  const result = await authService.refreshTokens(req.body.refreshToken, sessionContext(req));
   res.status(200).json(result);
 }
 
@@ -31,6 +35,25 @@ export async function resetPassword(req: Request, res: Response) {
   res.status(200).json({ message: 'Password has been reset successfully.' });
 }
 
+export async function changePassword(req: Request, res: Response) {
+  await authService.changePassword(req.user!.id, req.body.currentPassword, req.body.newPassword);
+  res.status(200).json({ message: 'Password changed successfully. Please log in again.' });
+}
+
 export async function me(req: Request, res: Response) {
   res.status(200).json({ user: req.user });
+}
+
+export async function listSessions(req: Request, res: Response) {
+  res.status(200).json(await authService.listSessions(req.user!.id));
+}
+
+export async function revokeSession(req: Request, res: Response) {
+  await authService.revokeSession(req.user!.id, req.params.id);
+  res.status(204).send();
+}
+
+export async function revokeAllSessions(req: Request, res: Response) {
+  await authService.revokeAllSessions(req.user!.id);
+  res.status(204).send();
 }

@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './payments.controller';
 import { recordPaymentSchema, reversePaymentSchema } from './payments.schema';
 
@@ -18,7 +20,7 @@ router.use(requireAuth);
  */
 router.get('/me', requireRole(Role.CUSTOMER), asyncHandler(controller.listOwnPayments));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT));
+router.use(requirePermission(PERMISSIONS.PAYMENTS_MANAGE));
 
 /**
  * @openapi

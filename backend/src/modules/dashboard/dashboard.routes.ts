@@ -1,18 +1,16 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './dashboard.controller';
 import { customersQuerySchema, pagedQuerySchema, paymentsQuerySchema, rangeQuerySchema, seriesQuerySchema } from './dashboard.schema';
 
 const router = Router();
 
 // Internal ERP dashboard — Customers use the simpler /reports/dashboard summary instead.
-const INTERNAL = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR, Role.SITE_INSPECTOR, Role.TECHNICIAN, Role.ACCOUNTANT] as const;
-const FINANCE = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.ACCOUNTANT] as const;
-
-router.use(requireAuth, requireRole(...INTERNAL));
+router.use(requireAuth, requirePermission(PERMISSIONS.DASHBOARD_VIEW));
 
 /**
  * @openapi
@@ -50,7 +48,7 @@ router.get('/projects', validate(rangeQuerySchema), asyncHandler(controller.proj
  */
 router.get('/services', asyncHandler(controller.services));
 
-router.use(requireRole(...FINANCE));
+router.use(requirePermission(PERMISSIONS.DASHBOARD_FINANCE_VIEW));
 
 /**
  * @openapi
@@ -104,6 +102,11 @@ router.get('/payments', validate(paymentsQuerySchema), asyncHandler(controller.p
  *     summary: Login Activity feed — Super Admin only
  *     tags: [Dashboard]
  */
-router.get('/login-activity', requireRole(Role.SUPER_ADMIN), validate(pagedQuerySchema), asyncHandler(controller.loginActivity));
+router.get(
+  '/login-activity',
+  requirePermission(PERMISSIONS.DASHBOARD_LOGIN_ACTIVITY_VIEW),
+  validate(pagedQuerySchema),
+  asyncHandler(controller.loginActivity),
+);
 
 export default router;

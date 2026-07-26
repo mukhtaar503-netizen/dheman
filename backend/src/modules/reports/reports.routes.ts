@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './reports.controller';
 
 const router = Router();
@@ -16,7 +17,7 @@ router.use(requireAuth);
  */
 router.get('/dashboard', asyncHandler(controller.dashboard));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.ACCOUNTANT, Role.PROJECT_MANAGER));
+router.use(requirePermission(PERMISSIONS.REPORTS_VIEW));
 
 /**
  * @openapi

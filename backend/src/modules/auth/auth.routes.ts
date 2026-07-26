@@ -5,11 +5,13 @@ import { validate } from '@/middleware/validate';
 import { requireAuth } from '@/middleware/auth';
 import * as authController from './auth.controller';
 import {
+  changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   refreshSchema,
   registerCustomerSchema,
   resetPasswordSchema,
+  revokeSessionSchema,
 } from './auth.schema';
 
 const router = Router();
@@ -84,5 +86,41 @@ router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(authC
  *     tags: [Auth]
  */
 router.get('/me', requireAuth, asyncHandler(authController.me));
+
+/**
+ * @openapi
+ * /auth/change-password:
+ *   post:
+ *     summary: Change the logged-in user's password (requires current password); revokes all sessions
+ *     tags: [Auth]
+ */
+router.post('/change-password', requireAuth, validate(changePasswordSchema), asyncHandler(authController.changePassword));
+
+/**
+ * @openapi
+ * /auth/sessions:
+ *   get:
+ *     summary: List the logged-in user's active sessions (Session Management)
+ *     tags: [Auth]
+ */
+router.get('/sessions', requireAuth, asyncHandler(authController.listSessions));
+
+/**
+ * @openapi
+ * /auth/sessions:
+ *   delete:
+ *     summary: Revoke every active session for the logged-in user (log out everywhere)
+ *     tags: [Auth]
+ */
+router.delete('/sessions', requireAuth, asyncHandler(authController.revokeAllSessions));
+
+/**
+ * @openapi
+ * /auth/sessions/{id}:
+ *   delete:
+ *     summary: Revoke a single session by ID (Session Management)
+ *     tags: [Auth]
+ */
+router.delete('/sessions/:id', requireAuth, validate(revokeSessionSchema), asyncHandler(authController.revokeSession));
 
 export default router;

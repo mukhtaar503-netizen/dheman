@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './projects.controller';
 import {
   addDocumentSchema,
@@ -36,9 +38,9 @@ router.get('/me', requireRole(Role.CUSTOMER), validate(listProjectsSchema), asyn
  */
 router.post('/:id/sign-off', requireRole(Role.CUSTOMER), asyncHandler(controller.customerSignOff));
 
-router.get('/:id', asyncHandler(controller.getProject));
+router.use(requirePermission(PERMISSIONS.PROJECTS_VIEW));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.SUPERVISOR));
+router.get('/:id', asyncHandler(controller.getProject));
 
 /**
  * @openapi
@@ -49,7 +51,7 @@ router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER, Role.
  */
 router.get('/', validate(listProjectsSchema), asyncHandler(controller.listProjects));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER));
+router.use(requirePermission(PERMISSIONS.PROJECTS_MANAGE));
 
 /**
  * @openapi

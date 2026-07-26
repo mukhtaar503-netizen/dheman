@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './quotations.controller';
 import { createQuotationSchema, listQuotationsSchema, respondQuotationSchema, reviseQuotationSchema } from './quotations.schema';
 
@@ -27,9 +29,9 @@ router.get('/me', requireRole(Role.CUSTOMER), validate(listQuotationsSchema), as
  */
 router.post('/:id/respond', requireRole(Role.CUSTOMER), validate(respondQuotationSchema), asyncHandler(controller.respondToQuotation));
 
-router.get('/:id', asyncHandler(controller.getQuotation));
+router.use(requirePermission(PERMISSIONS.QUOTATIONS_MANAGE));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER));
+router.get('/:id', asyncHandler(controller.getQuotation));
 
 /**
  * @openapi
@@ -65,7 +67,7 @@ router.post('/:id/revise', validate(reviseQuotationSchema), asyncHandler(control
  *     summary: Approve a discount above the configured threshold (BR-QUOTE-02) — Admin/Super Admin only
  *     tags: [Quotations]
  */
-router.post('/:id/approve-discount', requireRole(Role.SUPER_ADMIN, Role.ADMIN), asyncHandler(controller.approveDiscount));
+router.post('/:id/approve-discount', requirePermission(PERMISSIONS.QUOTATIONS_APPROVE_DISCOUNT), asyncHandler(controller.approveDiscount));
 
 /**
  * @openapi

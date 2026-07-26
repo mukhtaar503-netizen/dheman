@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import { updateSettingsSchema } from './settings.schema';
 import * as settingsService from './settings.service';
 
@@ -27,7 +28,7 @@ router.get('/', asyncHandler(async (_req, res) => res.status(200).json(await set
  */
 router.patch(
   '/',
-  requireRole(Role.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.SETTINGS_MANAGE),
   validate(updateSettingsSchema),
   asyncHandler(async (req, res) => res.status(200).json(await settingsService.updateSettings(req.user!, req.body))),
 );

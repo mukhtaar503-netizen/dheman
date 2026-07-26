@@ -47,5 +47,17 @@ export const resetPasswordSchema = z.object({
   params: z.object({}).optional(),
 });
 
+export const changePasswordSchema = z.object({
+  body: z.object({ currentPassword: z.string().min(1), newPassword: passwordSchema }),
+  query: z.object({}).optional(),
+  params: z.object({}).optional(),
+});
+
+export const revokeSessionSchema = z.object({
+  body: z.object({}).optional(),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+});
+
 export type RegisterCustomerInput = z.infer<typeof registerCustomerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];

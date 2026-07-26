@@ -205,6 +205,7 @@ model User {
   notifications          Notification[]
   auditLogs              AuditLog[]
   passwordResetTokens    PasswordResetToken[]
+  userRoles              UserRole[]
 
   @@index([role])
 }
@@ -215,11 +216,72 @@ model RefreshToken {
   tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DYNAMIC RBAC — Role/Permission/UserRole management (Phase "Authentication
+// & Authorization" deliverable: "Role & permission management"). Named
+// AppRole/AppPermission to avoid colliding with the existing `Role` enum,
+// which remains each User's primary role for JWT claims and the handful of
+// identity-scoped business rules (e.g. only a Super Admin may create another
+// Super Admin) that aren't really "permissions" in the grantable sense.
+// requirePermission() middleware is the actual route-level authorization
+// mechanism; requireRole() is now reserved for identity-scoped self-service
+// routes (Customer/Technician/Site Inspector acting on their own records).
+// ─────────────────────────────────────────────────────────────────────────
+
+model AppRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+}
+
+model AppPermission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  module      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       AppRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AppPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
 }
 
 model PasswordResetToken {

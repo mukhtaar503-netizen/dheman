@@ -6,12 +6,18 @@ import { HttpError } from '@/utils/http-error';
 import { hashPassword, verifyPassword } from '@/utils/password';
 import { generateRefreshToken, hashToken, signAccessToken } from '@/utils/tokens';
 import { recordAudit } from '@/utils/audit';
+import { syncPrimaryUserRole } from '@/modules/rbac/rbac.service';
 import { LoginInput, RegisterCustomerInput } from './auth.schema';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
 
-async function issueTokenPair(userId: string, role: Role, email: string) {
+interface SessionContext {
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+async function issueTokenPair(userId: string, role: Role, email: string, context?: SessionContext) {
   const accessToken = signAccessToken({ sub: userId, role, email });
   const refreshToken = generateRefreshToken();
 
@@ -20,13 +26,15 @@ async function issueTokenPair(userId: string, role: Role, email: string) {
       userId,
       tokenHash: hashToken(refreshToken),
       expiresAt: new Date(Date.now() + env.jwt.refreshExpiresInMs),
+      userAgent: context?.userAgent,
+      ipAddress: context?.ipAddress,
     },
   });
 
   return { accessToken, refreshToken };
 }
 
-export async function registerCustomer(input: RegisterCustomerInput) {
+export async function registerCustomer(input: RegisterCustomerInput, context?: SessionContext) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) throw HttpError.conflict('An account with this email already exists');
 
@@ -50,11 +58,13 @@ export async function registerCustomer(input: RegisterCustomerInput) {
     },
   });
 
-  const tokens = await issueTokenPair(user.id, user.role, user.email);
+  await syncPrimaryUserRole(user.id, Role.CUSTOMER);
+
+  const tokens = await issueTokenPair(user.id, user.role, user.email, context);
   return { user: sanitizeUser(user), ...tokens };
 }
 
-export async function login(input: LoginInput) {
+export async function login(input: LoginInput, context?: SessionContext) {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) throw HttpError.unauthorized('Invalid email or password');
 
@@ -86,11 +96,11 @@ export async function login(input: LoginInput) {
   // Powers the dashboard's Login Activity feed (GET /dashboard/login-activity).
   await recordAudit({ actorId: user.id, action: 'LOGIN', entityType: 'User', entityId: user.id });
 
-  const tokens = await issueTokenPair(user.id, user.role, user.email);
+  const tokens = await issueTokenPair(user.id, user.role, user.email, context);
   return { user: sanitizeUser(user), ...tokens };
 }
 
-export async function refreshTokens(refreshToken: string) {
+export async function refreshTokens(refreshToken: string, context?: SessionContext) {
   const tokenHash = hashToken(refreshToken);
   const stored = await prisma.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
 
@@ -101,7 +111,7 @@ export async function refreshTokens(refreshToken: string) {
   // Rotation: revoke the used token, issue a fresh pair.
   await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
 
-  return issueTokenPair(stored.user.id, stored.user.role, stored.user.email);
+  return issueTokenPair(stored.user.id, stored.user.role, stored.user.email, context);
 }
 
 export async function logout(refreshToken: string) {
@@ -147,6 +157,47 @@ export async function resetPassword(token: string, newPassword: string) {
       data: { revokedAt: new Date() },
     }),
   ]);
+}
+
+/** Authenticated "change my password" flow — distinct from the forgot-password token flow. */
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw HttpError.notFound('User not found');
+
+  const valid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!valid) throw HttpError.unauthorized('Current password is incorrect');
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+    // Changing your password invalidates every existing session, including this one —
+    // the client must log in again with the new password.
+    prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
+
+  await recordAudit({ actorId: userId, action: 'CHANGE_PASSWORD', entityType: 'User', entityId: userId });
+}
+
+/** Session Management — active (non-revoked, non-expired) refresh-token sessions for a user. */
+export async function listSessions(userId: string) {
+  return prisma.refreshToken.findMany({
+    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    select: { id: true, userAgent: true, ipAddress: true, createdAt: true, expiresAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function revokeSession(userId: string, sessionId: string) {
+  const session = await prisma.refreshToken.findUnique({ where: { id: sessionId } });
+  if (!session || session.userId !== userId) throw HttpError.notFound('Session not found');
+
+  await prisma.refreshToken.update({ where: { id: sessionId }, data: { revokedAt: new Date() } });
+  await recordAudit({ actorId: userId, action: 'REVOKE_SESSION', entityType: 'RefreshToken', entityId: sessionId });
+}
+
+export async function revokeAllSessions(userId: string) {
+  await prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+  await recordAudit({ actorId: userId, action: 'REVOKE_ALL_SESSIONS', entityType: 'User', entityId: userId });
 }
 
 function sanitizeUser<T extends { passwordHash: string }>(user: T) {

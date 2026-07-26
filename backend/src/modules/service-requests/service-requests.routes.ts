@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './service-requests.controller';
 import {
   createOwnServiceRequestSchema,
@@ -12,7 +14,6 @@ import {
 } from './service-requests.schema';
 
 const router = Router();
-const STAFF = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER] as const;
 
 router.use(requireAuth);
 
@@ -34,7 +35,7 @@ router.post('/me', requireRole(Role.CUSTOMER), validate(createOwnServiceRequestS
  */
 router.get('/me', requireRole(Role.CUSTOMER), asyncHandler(controller.listOwnServiceRequests));
 
-router.use(requireRole(...STAFF));
+router.use(requirePermission(PERMISSIONS.SERVICE_REQUESTS_MANAGE));
 
 /**
  * @openapi

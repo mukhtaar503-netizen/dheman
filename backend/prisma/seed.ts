@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_CATALOG } from '../src/config/permissions';
 
 const prisma = new PrismaClient();
 
@@ -18,10 +19,46 @@ async function main() {
     },
   });
 
+  // Dynamic RBAC: one AppRole per Role enum value, one AppPermission per catalog entry,
+  // then RolePermission rows reproducing DEFAULT_ROLE_PERMISSIONS exactly.
+  const roleRecords = new Map<Role, string>();
+  for (const roleName of Object.values(Role)) {
+    const appRole = await prisma.appRole.upsert({
+      where: { name: roleName },
+      update: {},
+      create: { name: roleName, description: `System role: ${roleName.replaceAll('_', ' ')}`, isSystem: true },
+    });
+    roleRecords.set(roleName, appRole.id);
+  }
+
+  const permissionRecords = new Map<string, string>();
+  for (const permission of PERMISSION_CATALOG) {
+    const appPermission = await prisma.appPermission.upsert({
+      where: { key: permission.key },
+      update: { module: permission.module, description: permission.description },
+      create: { key: permission.key, module: permission.module, description: permission.description },
+    });
+    permissionRecords.set(permission.key, appPermission.id);
+  }
+
+  for (const [roleName, permissionKeys] of Object.entries(DEFAULT_ROLE_PERMISSIONS) as [Role, string[]][]) {
+    const roleId = roleRecords.get(roleName)!;
+    for (const key of permissionKeys) {
+      const permissionId = permissionRecords.get(key);
+      if (!permissionId) continue;
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId, permissionId } },
+        update: {},
+        create: { roleId, permissionId },
+      });
+    }
+  }
+  console.log(`Seeded ${roleRecords.size} roles, ${permissionRecords.size} permissions.`);
+
   const superAdminEmail = 'superadmin@sms.local';
-  const existing = await prisma.user.findUnique({ where: { email: superAdminEmail } });
-  if (!existing) {
-    await prisma.user.create({
+  let superAdmin = await prisma.user.findUnique({ where: { email: superAdminEmail } });
+  if (!superAdmin) {
+    superAdmin = await prisma.user.create({
       data: {
         email: superAdminEmail,
         fullName: 'System Super Admin',
@@ -30,6 +67,20 @@ async function main() {
       },
     });
     console.log(`Seeded Super Admin: ${superAdminEmail} / ChangeMe123!`);
+  }
+
+  // Ensure every existing user has a UserRole row matching their primary `role` enum
+  // field — covers both the freshly-seeded Super Admin and any pre-existing users
+  // from before this RBAC migration.
+  const allUsers = await prisma.user.findMany({ select: { id: true, role: true } });
+  for (const user of allUsers) {
+    const roleId = roleRecords.get(user.role);
+    if (!roleId) continue;
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: user.id, roleId } },
+      update: {},
+      create: { userId: user.id, roleId },
+    });
   }
 
   const categories = [

@@ -3,6 +3,8 @@ import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
 import { requireAuth, requireRole } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as customersController from './customers.controller';
 import * as customersService from './customers.service';
 import {
@@ -14,9 +16,6 @@ import {
 } from './customers.schema';
 
 const router = Router();
-const STAFF = [Role.SUPER_ADMIN, Role.ADMIN, Role.PROJECT_MANAGER] as const;
-// R7 Accountant: "View Customer and Project records (read-only) for financial context."
-const READ_ONLY_EXTRA = [Role.ACCOUNTANT] as const;
 
 router.use(requireAuth);
 
@@ -59,7 +58,7 @@ router.patch(
  *     summary: List/search Customers (FR-CUST-01) — Accountant gets read-only access (R7)
  *     tags: [Customers]
  */
-router.get('/', requireRole(...STAFF, ...READ_ONLY_EXTRA), validate(listCustomersSchema), asyncHandler(customersController.listCustomers));
+router.get('/', requirePermission(PERMISSIONS.CUSTOMERS_READ), validate(listCustomersSchema), asyncHandler(customersController.listCustomers));
 
 /**
  * @openapi
@@ -68,9 +67,9 @@ router.get('/', requireRole(...STAFF, ...READ_ONLY_EXTRA), validate(listCustomer
  *     summary: Get a Customer with full history (FR-CUST-03) — Accountant gets read-only access (R7)
  *     tags: [Customers]
  */
-router.get('/:id', requireRole(...STAFF, ...READ_ONLY_EXTRA), asyncHandler(customersController.getCustomer));
+router.get('/:id', requirePermission(PERMISSIONS.CUSTOMERS_READ), asyncHandler(customersController.getCustomer));
 
-router.use(requireRole(...STAFF));
+router.use(requirePermission(PERMISSIONS.CUSTOMERS_MANAGE));
 
 /**
  * @openapi
@@ -97,7 +96,11 @@ router.patch('/:id', validate(updateCustomerSchema), asyncHandler(customersContr
  *     summary: Deactivate (soft-delete) a Customer (FR-CUST-07, BR-CUST-01)
  *     tags: [Customers]
  */
-router.post('/:id/deactivate', requireRole(Role.SUPER_ADMIN, Role.ADMIN), asyncHandler(customersController.deactivateCustomer));
+router.post(
+  '/:id/deactivate',
+  requirePermission(PERMISSIONS.CUSTOMERS_DEACTIVATE),
+  asyncHandler(customersController.deactivateCustomer),
+);
 
 /**
  * @openapi

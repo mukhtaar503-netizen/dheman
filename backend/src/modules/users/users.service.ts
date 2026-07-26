@@ -4,6 +4,7 @@ import { HttpError } from '@/utils/http-error';
 import { hashPassword } from '@/utils/password';
 import { recordAudit } from '@/utils/audit';
 import { AuthUser } from '@/middleware/auth';
+import { syncPrimaryUserRole } from '@/modules/rbac/rbac.service';
 
 const SELECT_SAFE = {
   id: true,
@@ -41,6 +42,7 @@ export async function createUser(actor: AuthUser, input: { fullName: string; ema
     await prisma.technicianProfile.create({ data: { userId: user.id } });
   }
 
+  await syncPrimaryUserRole(user.id, input.role);
   await recordAudit({ actorId: actor.id, action: 'CREATE', entityType: 'User', entityId: user.id, after: user });
   return user;
 }
@@ -86,6 +88,16 @@ export async function updateUser(
   }
 
   const user = await prisma.user.update({ where: { id }, data: input, select: SELECT_SAFE });
+  if (input.role && input.role !== before.role) {
+    await syncPrimaryUserRole(id, input.role);
+  }
   await recordAudit({ actorId: actor.id, action: 'UPDATE', entityType: 'User', entityId: id, before, after: user });
+  return user;
+}
+
+export async function updateOwnProfile(actor: AuthUser, input: { fullName?: string; phone?: string }) {
+  const before = await getUserById(actor.id);
+  const user = await prisma.user.update({ where: { id: actor.id }, data: input, select: SELECT_SAFE });
+  await recordAudit({ actorId: actor.id, action: 'UPDATE_OWN_PROFILE', entityType: 'User', entityId: actor.id, before, after: user });
   return user;
 }

@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { asyncHandler } from '@/utils/async-handler';
 import { validate } from '@/middleware/validate';
-import { requireAuth, requireRole } from '@/middleware/auth';
+import { requireAuth } from '@/middleware/auth';
+import { requirePermission } from '@/middleware/permission';
+import { PERMISSIONS } from '@/config/permissions';
 import * as service from './service-categories.service';
 import { createServiceCategorySchema, updateServiceCategorySchema } from './service-categories.schema';
 
@@ -25,7 +26,7 @@ router.get(
 
 router.get('/:id', asyncHandler(async (req, res) => res.status(200).json(await service.getCategoryById(req.params.id))));
 
-router.use(requireRole(Role.SUPER_ADMIN, Role.ADMIN));
+router.use(requirePermission(PERMISSIONS.SERVICE_CATEGORIES_MANAGE));
 
 /**
  * @openapi

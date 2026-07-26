@@ -20,3 +20,11 @@ export async function updateUser(req: Request, res: Response) {
   const user = await usersService.updateUser(req.user!, req.params.id, req.body);
   res.status(200).json(user);
 }
+
+export async function getOwnProfile(req: Request, res: Response) {
+  res.status(200).json(await usersService.getUserById(req.user!.id));
+}
+
+export async function updateOwnProfile(req: Request, res: Response) {
+  res.status(200).json(await usersService.updateOwnProfile(req.user!, req.body));
+}
