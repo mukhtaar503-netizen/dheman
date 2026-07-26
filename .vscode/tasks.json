@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Git Auto-Sync (background)",
+      "type": "shell",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\scripts\\git-auto-sync.ps1",
+          "-IntervalSeconds",
+          "30"
+        ]
+      },
+      "linux": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/git-auto-sync.ps1", "-IntervalSeconds", "30"]
+      },
+      "osx": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/git-auto-sync.ps1", "-IntervalSeconds", "30"]
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": false,
+        "close": false
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    },
+    {
+      "label": "Git Auto-Sync: Stop",
+      "type": "shell",
+      "windows": {
+        "command": "powershell.exe",
+        "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\scripts\\git-auto-sync-stop.ps1"]
+      },
+      "linux": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/git-auto-sync-stop.ps1"]
+      },
+      "osx": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/git-auto-sync-stop.ps1"]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Git Auto-Sync: View Log",
+      "type": "shell",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-Command",
+          "Get-Content -Path '${workspaceFolder}\\logs\\git-auto-sync.log' -Tail 50 -Wait"
+        ]
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "tail -n 50 -f '${workspaceFolder}/logs/git-auto-sync.log'"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "tail -n 50 -f '${workspaceFolder}/logs/git-auto-sync.log'"]
+      },
+      "problemMatcher": []
+    }
+  ]
+}
