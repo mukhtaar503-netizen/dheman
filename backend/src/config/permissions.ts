@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   CUSTOMERS_READ: 'customers.read',
   CUSTOMERS_MANAGE: 'customers.manage',
   CUSTOMERS_DEACTIVATE: 'customers.deactivate',
+  CUSTOMERS_DELETE: 'customers.delete',
+  CUSTOMERS_EXPORT: 'customers.export',
+  CUSTOMERS_STATISTICS_VIEW: 'customers.statistics-view',
 
   SERVICE_CATEGORIES_MANAGE: 'service-categories.manage',
   SERVICE_REQUESTS_MANAGE: 'service-requests.manage',
@@ -72,8 +75,11 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   def(PERMISSIONS.AUDIT_VIEW, 'audit', 'View the system audit log'),
 
   def(PERMISSIONS.CUSTOMERS_READ, 'customers', 'View customer records'),
-  def(PERMISSIONS.CUSTOMERS_MANAGE, 'customers', 'Create/update customer records'),
+  def(PERMISSIONS.CUSTOMERS_MANAGE, 'customers', 'Create/update customer records, addresses, contacts, notes, and documents'),
   def(PERMISSIONS.CUSTOMERS_DEACTIVATE, 'customers', 'Deactivate a customer record'),
+  def(PERMISSIONS.CUSTOMERS_DELETE, 'customers', 'Soft-delete/restore customer records, including bulk operations'),
+  def(PERMISSIONS.CUSTOMERS_EXPORT, 'customers', 'Export customer records to CSV'),
+  def(PERMISSIONS.CUSTOMERS_STATISTICS_VIEW, 'customers', 'View customer dashboard statistics'),
 
   def(PERMISSIONS.SERVICE_CATEGORIES_MANAGE, 'service-categories', 'Manage the service catalog'),
   def(PERMISSIONS.SERVICE_REQUESTS_MANAGE, 'service-requests', 'Create/update Service Requests on behalf of customers'),
@@ -116,6 +122,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSIONS.CUSTOMERS_READ,
     PERMISSIONS.CUSTOMERS_MANAGE,
     PERMISSIONS.CUSTOMERS_DEACTIVATE,
+    PERMISSIONS.CUSTOMERS_DELETE,
+    PERMISSIONS.CUSTOMERS_EXPORT,
+    PERMISSIONS.CUSTOMERS_STATISTICS_VIEW,
     PERMISSIONS.SERVICE_CATEGORIES_MANAGE,
     PERMISSIONS.SERVICE_REQUESTS_MANAGE,
     PERMISSIONS.INSPECTIONS_SUBMIT,
@@ -140,6 +149,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
   [Role.PROJECT_MANAGER]: [
     PERMISSIONS.CUSTOMERS_READ,
     PERMISSIONS.CUSTOMERS_MANAGE,
+    PERMISSIONS.CUSTOMERS_EXPORT,
+    PERMISSIONS.CUSTOMERS_STATISTICS_VIEW,
     PERMISSIONS.SERVICE_REQUESTS_MANAGE,
     PERMISSIONS.INSPECTIONS_MANAGE,
     PERMISSIONS.QUOTATIONS_MANAGE,
@@ -167,6 +178,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
   [Role.TECHNICIAN]: [PERMISSIONS.MATERIALS_MANAGE, PERMISSIONS.TASKS_EXECUTE, PERMISSIONS.DASHBOARD_VIEW],
   [Role.ACCOUNTANT]: [
     PERMISSIONS.CUSTOMERS_READ,
+    PERMISSIONS.CUSTOMERS_STATISTICS_VIEW,
     PERMISSIONS.EXPENSES_SUBMIT,
     PERMISSIONS.EXPENSES_APPROVE,
     PERMISSIONS.INVOICES_MANAGE,

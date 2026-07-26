@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from '@/utils/password';
 import { generateRefreshToken, hashToken, signAccessToken } from '@/utils/tokens';
 import { recordAudit } from '@/utils/audit';
 import { syncPrimaryUserRole } from '@/modules/rbac/rbac.service';
+import { buildCustomerCode } from '@/modules/customers/customers.service';
 import { LoginInput, RegisterCustomerInput } from './auth.schema';
 
 const MAX_FAILED_ATTEMPTS = 5;
@@ -49,13 +50,17 @@ export async function registerCustomer(input: RegisterCustomerInput, context?: S
     },
   });
 
-  await prisma.customer.create({
-    data: {
-      userId: user.id,
-      fullName: input.fullName,
-      email: input.email,
-      phone: input.phone,
-    },
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.customer.create({
+      data: {
+        userId: user.id,
+        customerCode: 'PENDING',
+        fullName: input.fullName,
+        email: input.email,
+        phone: input.phone,
+      },
+    });
+    await tx.customer.update({ where: { id: created.id }, data: { customerCode: buildCustomerCode(created.sequenceNo) } });
   });
 
   await syncPrimaryUserRole(user.id, Role.CUSTOMER);

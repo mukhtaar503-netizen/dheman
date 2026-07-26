@@ -34,7 +34,7 @@ export async function activity(req: Request, res: Response) {
 
 export async function customers(req: Request, res: Response) {
   const { page, pageSize, search } = req.query as any;
-  res.status(200).json(await customersService.listCustomers({ page, pageSize, search }));
+  res.status(200).json(await customersService.listCustomers({ page, pageSize, search, sort: 'newest' }));
 }
 
 export async function payments(req: Request, res: Response) {

@@ -1,6 +1,6 @@
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_CATALOG } from '../src/config/permissions';
+import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_CATALOG, PERMISSIONS } from '../src/config/permissions';
 
 const prisma = new PrismaClient();
 
@@ -53,7 +53,49 @@ async function main() {
       });
     }
   }
-  console.log(`Seeded ${roleRecords.size} roles, ${permissionRecords.size} permissions.`);
+  // Customer Management (Phase 4) named two access profiles — "Sales" and "Reception" —
+  // that don't correspond to a fixed Role enum value. Rather than adding new enum
+  // members (a breaking change touching JWT claims and every requireRole() check),
+  // seed them as ordinary (non-system) AppRoles: an Admin can edit their grants or
+  // create further custom roles from the existing Roles & Permissions admin UI.
+  const customRoles: { name: string; description: string; permissions: string[] }[] = [
+    {
+      name: 'Sales',
+      description: 'Front-of-house sales: manages customer records and views customer statistics',
+      permissions: [
+        PERMISSIONS.CUSTOMERS_READ,
+        PERMISSIONS.CUSTOMERS_MANAGE,
+        PERMISSIONS.CUSTOMERS_EXPORT,
+        PERMISSIONS.CUSTOMERS_STATISTICS_VIEW,
+        PERMISSIONS.SERVICE_REQUESTS_MANAGE,
+        PERMISSIONS.QUOTATIONS_MANAGE,
+        PERMISSIONS.DASHBOARD_VIEW,
+      ],
+    },
+    {
+      name: 'Reception',
+      description: 'Front-desk reception: registers walk-in customers and logs notes, read-only otherwise',
+      permissions: [PERMISSIONS.CUSTOMERS_READ, PERMISSIONS.CUSTOMERS_MANAGE, PERMISSIONS.DASHBOARD_VIEW],
+    },
+  ];
+  for (const customRole of customRoles) {
+    const appRole = await prisma.appRole.upsert({
+      where: { name: customRole.name },
+      update: {},
+      create: { name: customRole.name, description: customRole.description, isSystem: false },
+    });
+    for (const key of customRole.permissions) {
+      const permissionId = permissionRecords.get(key);
+      if (!permissionId) continue;
+      await prisma.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: appRole.id, permissionId } },
+        update: {},
+        create: { roleId: appRole.id, permissionId },
+      });
+    }
+  }
+
+  console.log(`Seeded ${roleRecords.size} roles, ${permissionRecords.size} permissions, ${customRoles.length} custom roles (Sales, Reception).`);
 
   const superAdminEmail = 'superadmin@sms.local';
   let superAdmin = await prisma.user.findUnique({ where: { email: superAdminEmail } });

@@ -43,6 +43,46 @@ enum CustomerType {
 enum CustomerStatus {
   ACTIVE
   INACTIVE
+  BLOCKED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PreferredContactMethod {
+  PHONE
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CustomerSource {
+  WALK_IN
+  REFERRAL
+  WEBSITE
+  SOCIAL_MEDIA
+  ADVERTISEMENT
+  PHONE_INQUIRY
+  OTHER
+}
+
+enum CustomerNoteVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+enum CustomerDocumentCategory {
+  CONTRACT
+  INVOICE
+  PHOTO
+  DRAWING
+  RECEIPT
+  WARRANTY
+  IDENTITY
+  OTHER
 }
 
 enum ServiceRequestStatus {
@@ -187,25 +227,29 @@ model User {
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
-  refreshTokens          RefreshToken[]
-  technicianProfile      TechnicianProfile?
-  customerProfile        Customer?            @relation("CustomerUser")
-  createdCustomers       Customer[]           @relation("CustomerCreatedBy")
-  ownedServiceRequests   ServiceRequest[]     @relation("ServiceRequestOwner")
-  createdServiceRequests ServiceRequest[]     @relation("ServiceRequestCreatedBy")
-  inspections            SiteInspection[]     @relation("InspectorUser")
-  createdQuotations      Quotation[]          @relation("QuotationCreatedBy")
-  managedProjects        Project[]            @relation("ProjectManager")
-  supervisedProjects     ProjectSupervisor[]
-  createdTasks           Task[]               @relation("TaskCreatedBy")
-  taskAssignments        TaskAssignment[]
-  submittedExpenses      Expense[]            @relation("ExpenseSubmittedBy")
-  approvedExpenses       Expense[]            @relation("ExpenseApprovedBy")
-  recordedPayments       Payment[]            @relation("PaymentRecordedBy")
-  notifications          Notification[]
-  auditLogs              AuditLog[]
-  passwordResetTokens    PasswordResetToken[]
-  userRoles              UserRole[]
+  refreshTokens             RefreshToken[]
+  technicianProfile         TechnicianProfile?
+  customerProfile           Customer?            @relation("CustomerUser")
+  createdCustomers          Customer[]           @relation("CustomerCreatedBy")
+  deletedCustomers          Customer[]           @relation("CustomerDeletedBy")
+  assignedCustomers         Customer[]           @relation("CustomerAssignedTechnician")
+  customerNotesAuthored     CustomerNote[]       @relation("CustomerNoteAuthor")
+  customerDocumentsUploaded CustomerDocument[]   @relation("CustomerDocumentUploadedBy")
+  ownedServiceRequests      ServiceRequest[]     @relation("ServiceRequestOwner")
+  createdServiceRequests    ServiceRequest[]     @relation("ServiceRequestCreatedBy")
+  inspections               SiteInspection[]     @relation("InspectorUser")
+  createdQuotations         Quotation[]          @relation("QuotationCreatedBy")
+  managedProjects           Project[]            @relation("ProjectManager")
+  supervisedProjects        ProjectSupervisor[]
+  createdTasks              Task[]               @relation("TaskCreatedBy")
+  taskAssignments           TaskAssignment[]
+  submittedExpenses         Expense[]            @relation("ExpenseSubmittedBy")
+  approvedExpenses          Expense[]            @relation("ExpenseApprovedBy")
+  recordedPayments          Payment[]            @relation("PaymentRecordedBy")
+  notifications             Notification[]
+  auditLogs                 AuditLog[]
+  passwordResetTokens       PasswordResetToken[]
+  userRoles                 UserRole[]
 
   @@index([role])
 }
@@ -312,55 +356,131 @@ model CompanySettings {
 }
 
 model Customer {
-  id             String         @id @default(uuid())
-  userId         String?        @unique
-  type           CustomerType   @default(INDIVIDUAL)
-  fullName       String
-  companyName    String?
-  email          String?
-  phone          String
-  billingAddress String?
-  status         CustomerStatus @default(ACTIVE)
-  tags           String[]       @default([])
-  createdById    String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                     String                 @id @default(uuid())
+  userId                 String?                @unique
+  sequenceNo             Int                    @unique @default(autoincrement())
+  customerCode           String                 @unique
+  type                   CustomerType           @default(INDIVIDUAL)
+  fullName               String
+  companyName            String?
+  email                  String?
+  phone                  String
+  alternatePhone         String?
+  nationalId             String?
+  gender                 Gender?
+  dateOfBirth            DateTime?
+  preferredContactMethod PreferredContactMethod @default(PHONE)
+  source                 CustomerSource         @default(OTHER)
+  billingAddress         String?
+  status                 CustomerStatus         @default(ACTIVE)
+  tags                   String[]               @default([])
+  assignedTechnicianId   String?
+  createdById            String?
+  deletedAt              DateTime?
+  deletedById            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
-  user            User?                 @relation("CustomerUser", fields: [userId], references: [id])
-  createdBy       User?                 @relation("CustomerCreatedBy", fields: [createdById], references: [id])
-  siteAddresses   CustomerSiteAddress[]
-  notes           CustomerNote[]
-  serviceRequests ServiceRequest[]
-  quotations      Quotation[]
-  projects        Project[]
-  invoices        Invoice[]
-  payments        Payment[]
-  feedback        CustomerFeedback[]
+  user               User?                 @relation("CustomerUser", fields: [userId], references: [id])
+  createdBy          User?                 @relation("CustomerCreatedBy", fields: [createdById], references: [id])
+  deletedBy          User?                 @relation("CustomerDeletedBy", fields: [deletedById], references: [id])
+  assignedTechnician User?                 @relation("CustomerAssignedTechnician", fields: [assignedTechnicianId], references: [id])
+  siteAddresses      CustomerSiteAddress[]
+  contacts           CustomerContact[]
+  notes              CustomerNote[]
+  documents          CustomerDocument[]
+  serviceRequests    ServiceRequest[]
+  quotations         Quotation[]
+  projects           Project[]
+  invoices           Invoice[]
+  payments           Payment[]
+  feedback           CustomerFeedback[]
 
   @@unique([phone, email])
   @@index([status])
+  @@index([deletedAt])
+  @@index([assignedTechnicianId])
+  @@index([createdAt])
 }
 
 model CustomerSiteAddress {
-  id          String  @id @default(uuid())
+  id          String   @id @default(uuid())
   customerId  String
   label       String
   addressLine String
+  country     String?
+  region      String?
   city        String?
+  district    String?
+  street      String?
+  building    String?
+  postalCode  String?
+  landmark    String?
+  mapLocation String?
+  isDefault   Boolean  @default(false)
   notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   serviceRequests ServiceRequest[]
+
+  @@index([customerId])
+}
+
+model CustomerContact {
+  id         String   @id @default(uuid())
+  customerId String
+  name       String
+  position   String?
+  phone      String?
+  email      String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 model CustomerNote {
-  id         String   @id @default(uuid())
-  customerId String
-  authorId   String?
-  note       String
-  createdAt  DateTime @default(now())
+  id          String                 @id @default(uuid())
+  customerId  String
+  authorId    String?
+  note        String
+  visibility  CustomerNoteVisibility @default(INTERNAL)
+  isPinned    Boolean                @default(false)
+  attachments String[]               @default([])
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  author   User?    @relation("CustomerNoteAuthor", fields: [authorId], references: [id])
+
+  @@index([customerId])
+}
+
+model CustomerDocument {
+  id           String                   @id @default(uuid())
+  customerId   String
+  category     CustomerDocumentCategory @default(OTHER)
+  fileName     String
+  fileUrl      String
+  fileSize     Int?
+  mimeType     String?
+  version      Int                      @default(1)
+  replacesId   String?                  @unique
+  uploadedById String?
+  createdAt    DateTime                 @default(now())
+
+  customer   Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  uploadedBy User?             @relation("CustomerDocumentUploadedBy", fields: [uploadedById], references: [id])
+  replaces   CustomerDocument? @relation("CustomerDocumentVersion", fields: [replacesId], references: [id])
+  replacedBy CustomerDocument? @relation("CustomerDocumentVersion")
+
+  @@index([customerId])
+  @@index([category])
 }
 
 // ─────────────────────────────────────────────────────────────────────────
