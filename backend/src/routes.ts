@@ -4,6 +4,7 @@ import usersRoutes from '@/modules/users/users.routes';
 import customersRoutes from '@/modules/customers/customers.routes';
 import settingsRoutes from '@/modules/settings/settings.routes';
 import serviceCategoriesRoutes from '@/modules/service-categories/service-categories.routes';
+import servicesRoutes from '@/modules/services/services.routes';
 import serviceRequestsRoutes from '@/modules/service-requests/service-requests.routes';
 import inspectionsRoutes from '@/modules/inspections/inspections.routes';
 import quotationsRoutes from '@/modules/quotations/quotations.routes';
@@ -31,6 +32,7 @@ router.use('/settings', settingsRoutes);
 
 // Phase 2 — Pre-Sales
 router.use('/service-categories', serviceCategoriesRoutes);
+router.use('/services', servicesRoutes); // Service Management: installable-services catalog (Furniture/Aluminum/CCTV/PVC)
 router.use('/service-requests', serviceRequestsRoutes);
 router.use('/inspections', inspectionsRoutes);
 router.use('/quotations', quotationsRoutes);

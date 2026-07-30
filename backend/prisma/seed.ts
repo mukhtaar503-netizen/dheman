@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, ServiceCategoryGroup } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_CATALOG, PERMISSIONS } from '../src/config/permissions';
 
@@ -140,6 +140,170 @@ async function main() {
       create: category,
     });
   }
+
+  // Phase 05 — the installable-services catalog (distinct from ServiceCategory above).
+  const services: {
+    serviceName: string;
+    category: ServiceCategoryGroup;
+    description: string;
+    durationMinutes: number;
+    estimatedCost: number;
+    requiredMaterials: string[];
+  }[] = [
+    {
+      serviceName: 'Kitchen Cabinets',
+      category: ServiceCategoryGroup.FURNITURE,
+      description: 'Design, build, and install fitted kitchen cabinetry.',
+      durationMinutes: 480,
+      estimatedCost: 1200,
+      requiredMaterials: ['MDF board', 'Cabinet hinges', 'Handles', 'Countertop'],
+    },
+    {
+      serviceName: 'Wardrobes',
+      category: ServiceCategoryGroup.FURNITURE,
+      description: 'Custom built-in or freestanding wardrobe installation.',
+      durationMinutes: 300,
+      estimatedCost: 650,
+      requiredMaterials: ['MDF board', 'Sliding rails', 'Handles'],
+    },
+    {
+      serviceName: 'Office Furniture',
+      category: ServiceCategoryGroup.FURNITURE,
+      description: 'Assembly and installation of office desks, storage, and workstations.',
+      durationMinutes: 240,
+      estimatedCost: 500,
+      requiredMaterials: ['Desk frames', 'Panels', 'Fasteners'],
+    },
+    {
+      serviceName: 'Bedroom Furniture',
+      category: ServiceCategoryGroup.FURNITURE,
+      description: 'Bed frames, nightstands, and dresser installation.',
+      durationMinutes: 240,
+      estimatedCost: 450,
+      requiredMaterials: ['Wood panels', 'Fasteners', 'Drawer slides'],
+    },
+    {
+      serviceName: 'TV Units',
+      category: ServiceCategoryGroup.FURNITURE,
+      description: 'Custom TV unit and media wall installation.',
+      durationMinutes: 180,
+      estimatedCost: 350,
+      requiredMaterials: ['MDF board', 'Cable management channel', 'Wall mount bracket'],
+    },
+    {
+      serviceName: 'Aluminum Doors',
+      category: ServiceCategoryGroup.ALUMINUM,
+      description: 'Supply and installation of aluminum-framed doors.',
+      durationMinutes: 240,
+      estimatedCost: 550,
+      requiredMaterials: ['Aluminum profile', 'Glass panel', 'Hinges', 'Locks'],
+    },
+    {
+      serviceName: 'Aluminum Windows',
+      category: ServiceCategoryGroup.ALUMINUM,
+      description: 'Supply and installation of aluminum-framed windows.',
+      durationMinutes: 180,
+      estimatedCost: 400,
+      requiredMaterials: ['Aluminum profile', 'Glass panel', 'Sealant'],
+    },
+    {
+      serviceName: 'Aluminum Partitions',
+      category: ServiceCategoryGroup.ALUMINUM,
+      description: 'Office/commercial aluminum-framed partition walls.',
+      durationMinutes: 360,
+      estimatedCost: 900,
+      requiredMaterials: ['Aluminum profile', 'Glass/panel infill', 'Fasteners'],
+    },
+    {
+      serviceName: 'Office Glass Systems',
+      category: ServiceCategoryGroup.ALUMINUM,
+      description: 'Frameless/semi-framed glass office systems.',
+      durationMinutes: 300,
+      estimatedCost: 850,
+      requiredMaterials: ['Tempered glass', 'Aluminum channel', 'Fittings'],
+    },
+    {
+      serviceName: 'Aluminum Kitchens',
+      category: ServiceCategoryGroup.ALUMINUM,
+      description: 'Aluminum-framed kitchen cabinet systems.',
+      durationMinutes: 480,
+      estimatedCost: 1300,
+      requiredMaterials: ['Aluminum profile', 'Cabinet panels', 'Hardware'],
+    },
+    {
+      serviceName: 'Camera Installation',
+      category: ServiceCategoryGroup.CCTV,
+      description: 'Mounting and wiring of CCTV cameras.',
+      durationMinutes: 120,
+      estimatedCost: 150,
+      requiredMaterials: ['CCTV camera', 'Mounting bracket', 'Cabling'],
+    },
+    {
+      serviceName: 'DVR/NVR Installation',
+      category: ServiceCategoryGroup.CCTV,
+      description: 'DVR/NVR recorder setup and storage configuration.',
+      durationMinutes: 90,
+      estimatedCost: 200,
+      requiredMaterials: ['DVR/NVR unit', 'Hard drive', 'Cabling'],
+    },
+    {
+      serviceName: 'Remote & Network Configuration',
+      category: ServiceCategoryGroup.CCTV,
+      description: 'Remote viewing app setup and network/port configuration.',
+      durationMinutes: 60,
+      estimatedCost: 100,
+      requiredMaterials: ['Network router access', 'Static IP/DDNS setup'],
+    },
+    {
+      serviceName: 'CCTV System Maintenance',
+      category: ServiceCategoryGroup.CCTV,
+      description: 'Periodic inspection, cleaning, and repair of an existing CCTV system.',
+      durationMinutes: 90,
+      estimatedCost: 80,
+      requiredMaterials: ['Cleaning kit', 'Replacement cabling (as needed)'],
+    },
+    {
+      serviceName: 'PVC Ceiling Installation',
+      category: ServiceCategoryGroup.PVC,
+      description: 'PVC ceiling panel supply and installation.',
+      durationMinutes: 300,
+      estimatedCost: 400,
+      requiredMaterials: ['PVC panels', 'Support frame', 'Fasteners'],
+    },
+    {
+      serviceName: 'PVC Wall Panels',
+      category: ServiceCategoryGroup.PVC,
+      description: 'PVC wall panel supply and installation.',
+      durationMinutes: 240,
+      estimatedCost: 350,
+      requiredMaterials: ['PVC panels', 'Adhesive', 'Trim'],
+    },
+    {
+      serviceName: 'Decorative PVC Designs',
+      category: ServiceCategoryGroup.PVC,
+      description: 'Decorative/patterned PVC ceiling or wall design work.',
+      durationMinutes: 300,
+      estimatedCost: 500,
+      requiredMaterials: ['Decorative PVC panels', 'LED strip (optional)', 'Fasteners'],
+    },
+    {
+      serviceName: 'PVC Maintenance Services',
+      category: ServiceCategoryGroup.PVC,
+      description: 'Repair and maintenance of existing PVC ceiling/wall installations.',
+      durationMinutes: 120,
+      estimatedCost: 120,
+      requiredMaterials: ['Replacement panels (as needed)', 'Adhesive'],
+    },
+  ];
+
+  for (const svc of services) {
+    await prisma.service.upsert({
+      where: { serviceName_category: { serviceName: svc.serviceName, category: svc.category } },
+      update: {},
+      create: svc,
+    });
+  }
+  console.log(`Seeded ${services.length} services across 4 categories.`);
 
   console.log('Seed complete.');
 }

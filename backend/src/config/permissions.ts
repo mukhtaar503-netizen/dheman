@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   CUSTOMERS_STATISTICS_VIEW: 'customers.statistics-view',
 
   SERVICE_CATEGORIES_MANAGE: 'service-categories.manage',
+  SERVICES_MANAGE: 'services.manage',
   SERVICE_REQUESTS_MANAGE: 'service-requests.manage',
 
   INSPECTIONS_SUBMIT: 'inspections.submit',
@@ -82,6 +83,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   def(PERMISSIONS.CUSTOMERS_STATISTICS_VIEW, 'customers', 'View customer dashboard statistics'),
 
   def(PERMISSIONS.SERVICE_CATEGORIES_MANAGE, 'service-categories', 'Manage the service catalog'),
+  def(PERMISSIONS.SERVICES_MANAGE, 'services', 'Manage the installable-services catalog (Furniture/Aluminum/CCTV/PVC)'),
   def(PERMISSIONS.SERVICE_REQUESTS_MANAGE, 'service-requests', 'Create/update Service Requests on behalf of customers'),
 
   def(PERMISSIONS.INSPECTIONS_SUBMIT, 'inspections', 'Submit Site Inspection findings'),
@@ -126,6 +128,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSIONS.CUSTOMERS_EXPORT,
     PERMISSIONS.CUSTOMERS_STATISTICS_VIEW,
     PERMISSIONS.SERVICE_CATEGORIES_MANAGE,
+    PERMISSIONS.SERVICES_MANAGE,
     PERMISSIONS.SERVICE_REQUESTS_MANAGE,
     PERMISSIONS.INSPECTIONS_SUBMIT,
     PERMISSIONS.INSPECTIONS_MANAGE,

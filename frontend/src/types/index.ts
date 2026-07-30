@@ -238,3 +238,26 @@ export interface Payment {
   customer: { id: string; fullName: string };
   invoice: { id: string; invoiceNo: string };
 }
+
+export type ServiceCategoryGroup = 'FURNITURE' | 'ALUMINUM' | 'CCTV' | 'PVC';
+export type ServiceStatus = 'ACTIVE' | 'INACTIVE';
+
+export interface Service {
+  id: string;
+  serviceName: string;
+  category: ServiceCategoryGroup;
+  description?: string | null;
+  durationMinutes?: number | null;
+  estimatedCost?: string | number | null;
+  requiredMaterials: string[];
+  status: ServiceStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceStatistics {
+  totalServices: number;
+  activeServices: number;
+  inactiveServices: number;
+  byCategory: { category: ServiceCategoryGroup; count: number }[];
+}

@@ -1,18 +1,10 @@
-import { Prisma, CustomerStatus, CustomerType, ProjectStatus, Role } from '@prisma/client';
+import { Prisma, CustomerStatus, CustomerType, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/utils/http-error';
 import { recordAudit } from '@/utils/audit';
 import { AuthUser } from '@/middleware/auth';
 import { createSignedUploadUrl, deleteObject, pathFromPublicUrl } from '@/lib/storage';
-
-const ACTIVE_PROJECT_STATUSES: ProjectStatus[] = [
-  ProjectStatus.PLANNING,
-  ProjectStatus.SCHEDULED,
-  ProjectStatus.IN_PROGRESS,
-  ProjectStatus.ON_HOLD,
-];
-const COMPLETED_PROJECT_STATUSES: ProjectStatus[] = [ProjectStatus.COMPLETED, ProjectStatus.CLOSED];
-const CANCELLED_PROJECT_STATUSES: ProjectStatus[] = [ProjectStatus.CANCELLED];
+import { ACTIVE_PROJECT_STATUSES, COMPLETED_PROJECT_STATUSES, CANCELLED_PROJECT_STATUSES } from '@/config/project-status-groups';
 
 export function buildCustomerCode(sequenceNo: number) {
   return `CUS-${String(sequenceNo).padStart(6, '0')}`;
