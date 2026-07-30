@@ -396,7 +396,6 @@ model Customer {
   payments           Payment[]
   feedback           CustomerFeedback[]
 
-  @@unique([phone, email])
   @@index([status])
   @@index([deletedAt])
   @@index([assignedTechnicianId])
