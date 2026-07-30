@@ -35,7 +35,19 @@ export async function userHasPermission(userId: string, permissionKeys: string[]
 /** Ensures a user's UserRole rows reflect their current primary `role` enum field — called on create/role-change. */
 export async function syncPrimaryUserRole(userId: string, role: Role) {
   const appRole = await prisma.appRole.findUnique({ where: { name: role } });
-  if (!appRole) return; // seed not run yet — fails open to avoid blocking auth in dev before first seed
+  if (!appRole) {
+    // Fails open (doesn't block user creation/login) so a fresh DB before the first seed
+    // doesn't lock everyone out — but this leaves the user with zero UserRole rows, so
+    // every requirePermission() check will 403 them despite their `role` field/JWT
+    // looking correct. That's silent and confusing, so make it loud instead: run
+    // `npx prisma db seed` against this database — it's idempotent and backfills a
+    // UserRole for every existing user from their current `role` field.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[rbac] No AppRole row found for "${role}" — user ${userId} was created/updated with zero effective permissions. Run "npx prisma db seed" against this database to fix it.`,
+    );
+    return;
+  }
 
   const existing = await prisma.userRole.findMany({ where: { userId }, include: { role: true } });
   const alreadyHasIt = existing.some((ur) => ur.roleId === appRole.id);
