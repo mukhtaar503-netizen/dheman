@@ -6,7 +6,15 @@ import { requireAuth, requireRole } from '@/middleware/auth';
 import { requirePermission } from '@/middleware/permission';
 import { PERMISSIONS } from '@/config/permissions';
 import * as controller from './inspections.controller';
-import { rescheduleInspectionSchema, scheduleInspectionSchema, submitInspectionSchema } from './inspections.schema';
+import {
+  addInspectionPhotoSchema,
+  inspectionIdParamsSchema,
+  requestInspectionPhotoUploadUrlSchema,
+  rescheduleInspectionSchema,
+  scheduleInspectionSchema,
+  submitInspectionSchema,
+  updateInspectionDetailsSchema,
+} from './inspections.schema';
 
 const router = Router();
 router.use(requireAuth);
@@ -34,7 +42,63 @@ router.post(
   asyncHandler(controller.submitInspection),
 );
 
-router.get('/:id', requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT, PERMISSIONS.INSPECTIONS_MANAGE), asyncHandler(controller.getInspection));
+/**
+ * @openapi
+ * /inspections/{id}/complete:
+ *   patch:
+ *     summary: Site Inspector completes the inspection with final findings and material/labor estimates
+ *     tags: [Inspections]
+ */
+router.patch(
+  '/:id/complete',
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT),
+  validate(submitInspectionSchema),
+  asyncHandler(controller.submitInspection),
+);
+
+/**
+ * @openapi
+ * /inspections/{id}/details:
+ *   patch:
+ *     summary: Site Inspector saves incremental findings (measurements/notes/estimates) while on-site
+ *     tags: [Inspections]
+ */
+router.patch(
+  '/:id/details',
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT),
+  validate(updateInspectionDetailsSchema),
+  asyncHandler(controller.updateInspectionDetails),
+);
+
+/**
+ * @openapi
+ * /inspections/{id}/photos/upload-url:
+ *   post:
+ *     summary: Mint a signed Supabase Storage upload URL for an inspection photo
+ *     tags: [Inspections]
+ */
+router.post(
+  '/:id/photos/upload-url',
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT),
+  validate(requestInspectionPhotoUploadUrlSchema),
+  asyncHandler(controller.requestPhotoUploadUrl),
+);
+
+/**
+ * @openapi
+ * /inspections/{id}/photos:
+ *   post:
+ *     summary: Record an inspection photo after it's been uploaded to storage
+ *     tags: [Inspections]
+ */
+router.post(
+  '/:id/photos',
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT),
+  validate(addInspectionPhotoSchema),
+  asyncHandler(controller.addPhoto),
+);
+
+router.get('/:id', requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT, PERMISSIONS.INSPECTIONS_MANAGE), validate(inspectionIdParamsSchema), asyncHandler(controller.getInspection));
 
 router.use(requirePermission(PERMISSIONS.INSPECTIONS_MANAGE));
 

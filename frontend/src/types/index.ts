@@ -267,3 +267,112 @@ export interface ServiceStatistics {
   recentlyAdded: Service[];
   mostFrequentlyUsed: (Service & { usageCount: number })[];
 }
+
+// ── PHASE 06: Service Requests & Site Inspections ────────────────────────────
+
+export type ServiceRequestPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type ServiceRequestStatus =
+  | 'NEW'
+  | 'UNDER_REVIEW'
+  | 'SITE_INSPECTION_SCHEDULED'
+  | 'INSPECTION_COMPLETED'
+  | 'QUOTATION_SENT'
+  | 'APPROVED'
+  | 'CONVERTED_TO_PROJECT'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'CLOSED';
+export type InspectionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export interface ServiceRequestAttachment {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  createdAt: string;
+}
+
+export interface InspectionMeasurement {
+  id: string;
+  label: string;
+  length?: string | number | null;
+  width?: string | number | null;
+  height?: string | number | null;
+  unit: string;
+  area?: string | number | null;
+}
+
+export interface InspectionPhoto {
+  id: string;
+  fileUrl: string;
+  caption?: string | null;
+  createdAt: string;
+}
+
+export interface MaterialEstimateRow {
+  material: string;
+  quantity: string;
+  estimatedCost: number;
+}
+
+export interface LaborEstimateRow {
+  task: string;
+  estimatedHours: number;
+  cost: number;
+}
+
+export interface SiteInspection {
+  id: string;
+  serviceRequestId: string;
+  inspectorId: string;
+  inspector?: { id: string; fullName: string };
+  scheduledAt: string;
+  status: InspectionStatus;
+  accessNotes?: string | null;
+  technicalNotes?: string | null;
+  materialEstimate?: MaterialEstimateRow[] | null;
+  laborEstimate?: LaborEstimateRow[] | null;
+  estimatedCost?: string | number | null;
+  estimatedDuration?: string | null;
+  cancelReason?: string | null;
+  submittedAt?: string | null;
+  measurements?: InspectionMeasurement[];
+  photos?: InspectionPhoto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceRequest {
+  id: string;
+  referenceNo: string;
+  customerId: string;
+  serviceCategoryId: string;
+  serviceId?: string | null;
+  title?: string | null;
+  description: string;
+  projectLocation?: string | null;
+  siteAddressId?: string | null;
+  preferredContactTime?: string | null;
+  preferredDate?: string | null;
+  priority: ServiceRequestPriority;
+  status: ServiceRequestStatus;
+  ownerId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: Customer;
+  serviceCategory?: { id: string; name: string };
+  service?: Service | null;
+  attachments?: ServiceRequestAttachment[];
+  inspection?: SiteInspection | null;
+  quotations?: { id: string; quotationNo: string; status: string; total: number | string; createdAt: string }[];
+}
+
+export interface ServiceRequestStatistics {
+  totalRequests: number;
+  pendingRequests: number;
+  scheduledInspections: number;
+  completedInspections: number;
+  averageInspectionCost: number | null;
+  byStatus: { status: ServiceRequestStatus; count: number }[];
+  byPriority: { priority: ServiceRequestPriority; count: number }[];
+  monthlyTrend: { month: string; count: number }[];
+}

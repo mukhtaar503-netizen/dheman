@@ -24,3 +24,15 @@ export async function reschedule(req: Request, res: Response) {
 export async function submitInspection(req: Request, res: Response) {
   res.status(200).json(await service.submitInspection(req.user!, req.params.id, req.body));
 }
+
+export async function updateInspectionDetails(req: Request, res: Response) {
+  res.status(200).json(await service.updateInspectionDetails(req.user!, req.params.id, req.body));
+}
+
+export async function requestPhotoUploadUrl(req: Request, res: Response) {
+  res.status(200).json(await service.requestPhotoUploadUrl(req.params.id, req.body.fileName));
+}
+
+export async function addPhoto(req: Request, res: Response) {
+  res.status(201).json(await service.addPhoto(req.user!, req.params.id, req.body));
+}
