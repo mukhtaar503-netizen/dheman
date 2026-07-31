@@ -155,6 +155,9 @@ export default function NewServiceRequestPage() {
             <div className="space-y-1">
               <Label htmlFor="description">Description</Label>
               <Textarea id="description" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} required />
+              {description.length > 0 && description.trim().length < 5 && (
+                <p className="text-xs text-destructive">Description must be at least 5 characters ({description.trim().length}/5).</p>
+              )}
             </div>
 
             <section className="grid gap-4 sm:grid-cols-2">
@@ -188,13 +191,27 @@ export default function NewServiceRequestPage() {
               </Select>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => router.back()}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!canSubmit || mutation.isPending}>
-                {mutation.isPending ? 'Submitting…' : 'Submit Request'}
-              </Button>
+            <div className="flex flex-col items-end gap-2">
+              {!canSubmit && (
+                <p className="text-xs text-muted-foreground">
+                  {[
+                    !isCustomer && !customerId && 'select a customer',
+                    !serviceCategoryId && 'select a service category',
+                    description.trim().length < 5 && 'enter a description (min. 5 characters)',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')
+                    .replace(/^./, (c) => c.toUpperCase())}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={() => router.back()}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!canSubmit || mutation.isPending}>
+                  {mutation.isPending ? 'Submitting…' : 'Submit Request'}
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>
