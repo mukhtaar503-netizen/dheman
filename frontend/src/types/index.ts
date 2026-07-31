@@ -376,3 +376,111 @@ export interface ServiceRequestStatistics {
   byPriority: { priority: ServiceRequestPriority; count: number }[];
   monthlyTrend: { month: string; count: number }[];
 }
+
+// ── PHASE 07: Quotation Management ───────────────────────────────────────────
+
+export type QuotationStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'REVISED' | 'CANCELLED';
+export type QuotationItemCategory = 'MATERIAL' | 'LABOR' | 'TRANSPORTATION';
+export type DiscountType = 'PERCENTAGE' | 'FIXED';
+export type QuotationApprovalAction = 'APPROVED' | 'REJECTED';
+
+export interface QuotationLineItem {
+  id: string;
+  quotationId: string;
+  serviceCategoryId?: string | null;
+  serviceId?: string | null;
+  category: QuotationItemCategory;
+  itemName?: string | null;
+  description: string;
+  quantity: number | string;
+  unit: string;
+  unitPrice: number | string;
+  subtotal: number | string;
+}
+
+export interface QuotationApproval {
+  id: string;
+  quotationId: string;
+  customerId: string;
+  action: QuotationApprovalAction;
+  comments?: string | null;
+  approvedDate: string;
+  createdAt: string;
+}
+
+export interface QuotationAuditLogEntry {
+  id: string;
+  quotationId: string;
+  action: string;
+  actorId?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface Quotation {
+  id: string;
+  quotationNo: string;
+  serviceRequestId: string;
+  siteInspectionId?: string | null;
+  customerId: string;
+  version: number;
+  status: QuotationStatus;
+  title?: string | null;
+  description?: string | null;
+  materialCost: number | string;
+  laborCost: number | string;
+  transportationCost: number | string;
+  subtotal: number | string;
+  taxRatePercent: number | string;
+  taxAmount: number | string;
+  discountType?: DiscountType | null;
+  discountValue?: number | string | null;
+  discountAmount: number | string;
+  discountReason?: string | null;
+  discountApprovedById?: string | null;
+  total: number | string;
+  validityDays?: number | null;
+  validUntil?: string | null;
+  notes?: string | null;
+  termsAndConditions?: string | null;
+  sentAt?: string | null;
+  respondedAt?: string | null;
+  customerComment?: string | null;
+  emailSentAt?: string | null;
+  emailStatus?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: Customer;
+  serviceRequest?: ServiceRequest;
+  siteInspection?: SiteInspection | null;
+  lineItems?: QuotationLineItem[];
+  auditLogs?: QuotationAuditLogEntry[];
+  approvals?: QuotationApproval[];
+}
+
+export interface QuotationStatistics {
+  totalQuotations: number;
+  draftQuotations: number;
+  sentQuotations: number;
+  approvedQuotations: number;
+  rejectedQuotations: number;
+  totalRevenueValue: number;
+  approvalRatePercent: number | null;
+  byStatus: { status: QuotationStatus; count: number }[];
+  monthlyValue: { month: string; value: number }[];
+}
+
+export interface QuotationPrefill {
+  serviceRequest: ServiceRequest;
+  customer: Customer;
+  siteInspection: SiteInspection;
+  suggestedLineItems: {
+    category: QuotationItemCategory;
+    itemName: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+  }[];
+}

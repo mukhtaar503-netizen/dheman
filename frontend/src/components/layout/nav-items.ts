@@ -18,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/service-requests', label: 'Service Requests', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'CUSTOMER'] },
   { href: '/site-inspections', label: 'Site Inspections', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SITE_INSPECTOR'] },
   { href: '/services', label: 'Services', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SUPERVISOR'] },
-  { href: '/quotations', label: 'Quotations', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER'] },
+  { href: '/quotations', label: 'Quotations', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SITE_INSPECTOR', 'CUSTOMER'] },
   { href: '/projects', label: 'Projects', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SUPERVISOR'] },
   { href: '/technicians', label: 'Technicians', roles: ['SUPER_ADMIN', 'ADMIN', 'PROJECT_MANAGER', 'SUPERVISOR'] },
   { href: '/invoices', label: 'Invoices & Payments', roles: ['SUPER_ADMIN', 'ADMIN', 'ACCOUNTANT'] },

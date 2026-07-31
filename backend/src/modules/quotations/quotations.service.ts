@@ -1,14 +1,19 @@
-import { NotificationType, QuotationStatus, ServiceRequestStatus } from '@prisma/client';
+import { InspectionStatus, NotificationType, Prisma, QuotationApprovalAction, QuotationItemCategory, QuotationStatus, ServiceRequestStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/utils/http-error';
 import { recordAudit } from '@/utils/audit';
 import { notify } from '@/utils/notify';
+import { sendMail } from '@/lib/mailer';
 import { generateReferenceNumber } from '@/utils/numbering';
 import { getSettings } from '@/modules/settings/settings.service';
 import { AuthUser } from '@/middleware/auth';
+import { generateQuotationPdf } from './quotations.pdf.service';
 
 interface LineItemInput {
   serviceCategoryId?: string;
+  serviceId?: string;
+  category: QuotationItemCategory;
+  itemName?: string;
   description: string;
   quantity: number;
   unit: string;
@@ -19,15 +24,35 @@ function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-function computeTotals(lineItems: LineItemInput[], taxRatePercent: number, discountType?: 'PERCENTAGE' | 'FIXED', discountValue?: number) {
-  const subtotal = round2(lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
+/**
+ * Cost Calculation Engine (Section 3 of the spec):
+ *   subtotal = materialCost + laborCost + transportationCost  (derived from categorized line items)
+ *   discountAmount = subtotal * pct/100, or the fixed value
+ *   taxAmount ("VAT") = (subtotal - discountAmount) * vatPercent/100
+ *   total = subtotal - discountAmount + taxAmount
+ */
+function computeTotals(
+  lineItems: LineItemInput[],
+  vatPercent: number,
+  discountType?: 'PERCENTAGE' | 'FIXED',
+  discountValue?: number,
+) {
+  const bucketSum = (category: QuotationItemCategory) =>
+    round2(lineItems.filter((i) => i.category === category).reduce((sum, i) => sum + i.quantity * i.unitPrice, 0));
+
+  const materialCost = bucketSum(QuotationItemCategory.MATERIAL);
+  const laborCost = bucketSum(QuotationItemCategory.LABOR);
+  const transportationCost = bucketSum(QuotationItemCategory.TRANSPORTATION);
+  const subtotal = round2(materialCost + laborCost + transportationCost);
+
   const discountAmount = round2(
     !discountType || !discountValue ? 0 : discountType === 'PERCENTAGE' ? subtotal * (discountValue / 100) : discountValue,
   );
   const taxableBase = Math.max(subtotal - discountAmount, 0);
-  const taxAmount = round2(taxableBase * (taxRatePercent / 100));
+  const taxAmount = round2(taxableBase * (vatPercent / 100));
   const total = round2(taxableBase + taxAmount);
-  return { subtotal, taxAmount, total };
+
+  return { materialCost, laborCost, transportationCost, subtotal, discountAmount, taxAmount, total };
 }
 
 async function assertLatestSentQuotationConstraint(serviceRequestId: string) {
@@ -38,44 +63,92 @@ async function assertLatestSentQuotationConstraint(serviceRequestId: string) {
   }
 }
 
-export async function createQuotation(
-  actor: AuthUser,
-  input: { serviceRequestId: string; lineItems: LineItemInput[]; discountType?: 'PERCENTAGE' | 'FIXED'; discountValue?: number; discountReason?: string },
-) {
+interface CreateQuotationInput {
+  serviceRequestId: string;
+  siteInspectionId?: string;
+  title?: string;
+  description?: string;
+  lineItems: LineItemInput[];
+  discountType?: 'PERCENTAGE' | 'FIXED';
+  discountValue?: number;
+  discountReason?: string;
+  vatPercentage?: number;
+  validityDays?: number;
+  notes?: string;
+  termsAndConditions?: string;
+}
+
+export async function createQuotation(actor: AuthUser, input: CreateQuotationInput) {
   const serviceRequest = await prisma.serviceRequest.findUnique({ where: { id: input.serviceRequestId } });
   if (!serviceRequest) throw HttpError.notFound('Service request not found');
+
+  if (input.siteInspectionId) {
+    const inspection = await prisma.siteInspection.findUnique({ where: { id: input.siteInspectionId } });
+    if (!inspection) throw HttpError.notFound('Site inspection not found');
+    if (inspection.serviceRequestId !== input.serviceRequestId) {
+      throw HttpError.badRequest('This Site Inspection does not belong to the given Service Request');
+    }
+  }
 
   await assertLatestSentQuotationConstraint(input.serviceRequestId);
 
   const settings = await getSettings();
-  const taxRatePercent = Number(settings.taxRatePercent);
-  const { subtotal, taxAmount, total } = computeTotals(input.lineItems, taxRatePercent, input.discountType, input.discountValue);
+  const vatPercent = input.vatPercentage ?? Number(settings.taxRatePercent);
+  const { materialCost, laborCost, transportationCost, subtotal, discountAmount, taxAmount, total } = computeTotals(
+    input.lineItems,
+    vatPercent,
+    input.discountType,
+    input.discountValue,
+  );
 
   // BR-QUOTE-02: discount beyond the configured threshold requires Admin/Super Admin approval before sending.
-  const discountPercent = input.discountType === 'PERCENTAGE' ? input.discountValue ?? 0 : subtotal ? ((input.discountValue ?? 0) / subtotal) * 100 : 0;
+  const discountPercent = input.discountType === 'PERCENTAGE' ? input.discountValue ?? 0 : subtotal ? (discountAmount / subtotal) * 100 : 0;
   const requiresApproval = discountPercent > Number(settings.discountApprovalThreshold);
   if (requiresApproval && !input.discountReason) {
     throw HttpError.badRequest('A discount above the approval threshold requires a documented reason');
   }
 
   const quotationNo = await generateReferenceNumber('QT', 'quotation');
-  const validUntil = new Date(Date.now() + settings.quotationValidityDays * 24 * 60 * 60_000);
+  const validityDays = input.validityDays ?? settings.quotationValidityDays;
+  const validUntil = new Date(Date.now() + validityDays * 24 * 60 * 60_000);
 
   const quotation = await prisma.quotation.create({
     data: {
       quotationNo,
       serviceRequestId: input.serviceRequestId,
+      siteInspectionId: input.siteInspectionId,
       customerId: serviceRequest.customerId,
+      title: input.title,
+      description: input.description,
+      materialCost,
+      laborCost,
+      transportationCost,
       subtotal,
-      taxRatePercent,
+      taxRatePercent: vatPercent,
       taxAmount,
       discountType: input.discountType,
       discountValue: input.discountValue,
+      discountAmount,
       discountReason: input.discountReason,
       total,
+      validityDays,
       validUntil,
+      notes: input.notes,
+      termsAndConditions: input.termsAndConditions,
       createdById: actor.id,
-      lineItems: { create: input.lineItems.map((item) => ({ ...item, subtotal: round2(item.quantity * item.unitPrice) })) },
+      lineItems: {
+        create: input.lineItems.map((item) => ({
+          serviceCategoryId: item.serviceCategoryId,
+          serviceId: item.serviceId,
+          category: item.category,
+          itemName: item.itemName,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          subtotal: round2(item.quantity * item.unitPrice),
+        })),
+      },
       auditLogs: { create: { action: 'CREATED', actorId: actor.id } },
     },
     include: { lineItems: true },
@@ -86,7 +159,7 @@ export async function createQuotation(
 }
 
 /** BR-QUOTE-01: revising an Approved Quotation creates a brand-new version instead of mutating it. */
-export async function reviseQuotation(actor: AuthUser, originalId: string, input: Parameters<typeof createQuotation>[1]) {
+export async function reviseQuotation(actor: AuthUser, originalId: string, input: Omit<CreateQuotationInput, 'serviceRequestId'>) {
   const original = await getQuotationById(originalId);
   const { quotation } = await createQuotation(actor, { ...input, serviceRequestId: original.serviceRequestId });
 
@@ -94,32 +167,230 @@ export async function reviseQuotation(actor: AuthUser, originalId: string, input
     where: { id: quotation.id },
     data: { version: original.version + 1 },
   });
-  await prisma.quotationAuditLog.create({ data: { quotationId: originalId, action: 'REVISED', actorId: actor.id, note: `Superseded by ${revised.quotationNo}` } });
+  await prisma.quotationAuditLog.create({
+    data: { quotationId: originalId, action: 'REVISED', actorId: actor.id, note: `Superseded by ${revised.quotationNo}` },
+  });
   return revised;
+}
+
+/** Feeds the Create Quotation form once a Site Inspection is selected — customer/service/cost-estimate auto-load. */
+export async function getQuotationPrefill(siteInspectionId: string) {
+  const inspection = await prisma.siteInspection.findUnique({
+    where: { id: siteInspectionId },
+    include: { serviceRequest: { include: { customer: true, serviceCategory: true, service: true } } },
+  });
+  if (!inspection) throw HttpError.notFound('Site inspection not found');
+  if (inspection.status !== InspectionStatus.COMPLETED) {
+    throw HttpError.badRequest('Only a completed Site Inspection can be used to prefill a Quotation');
+  }
+
+  const materialItems = ((inspection.materialEstimate as { material: string; quantity: string; estimatedCost: number }[] | null) ?? []).map(
+    (m) => ({
+      category: QuotationItemCategory.MATERIAL,
+      itemName: m.material,
+      description: m.material,
+      quantity: 1,
+      unit: m.quantity,
+      unitPrice: m.estimatedCost,
+    }),
+  );
+  const laborItems = ((inspection.laborEstimate as { task: string; estimatedHours: number; cost: number }[] | null) ?? []).map((l) => ({
+    category: QuotationItemCategory.LABOR,
+    itemName: l.task,
+    description: `${l.task} (${l.estimatedHours}h)`,
+    quantity: 1,
+    unit: 'job',
+    unitPrice: l.cost,
+  }));
+
+  return {
+    serviceRequest: inspection.serviceRequest,
+    customer: inspection.serviceRequest.customer,
+    siteInspection: inspection,
+    suggestedLineItems: [...materialItems, ...laborItems],
+  };
 }
 
 export async function getQuotationById(id: string) {
   const quotation = await prisma.quotation.findUnique({
     where: { id },
-    include: { lineItems: true, customer: true, serviceRequest: true, auditLogs: { orderBy: { createdAt: 'desc' } } },
+    include: {
+      lineItems: true,
+      customer: true,
+      serviceRequest: { include: { serviceCategory: true, service: true } },
+      siteInspection: true,
+      auditLogs: { orderBy: { createdAt: 'desc' } },
+      approvals: { orderBy: { createdAt: 'desc' } },
+    },
   });
   if (!quotation) throw HttpError.notFound('Quotation not found');
   return quotation;
 }
 
-export async function listQuotations(filters: { customerId?: string; status?: QuotationStatus; page: number; pageSize: number }) {
-  const where = { ...(filters.customerId ? { customerId: filters.customerId } : {}), ...(filters.status ? { status: filters.status } : {}) };
+interface ListQuotationsFilters {
+  customerId?: string;
+  status?: QuotationStatus;
+  search?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  amountMin?: number;
+  amountMax?: number;
+  sort?: 'newest' | 'oldest' | 'amount_high' | 'amount_low';
+  page: number;
+  pageSize: number;
+}
+
+export async function listQuotations(filters: ListQuotationsFilters) {
+  const where: Prisma.QuotationWhereInput = {
+    ...(filters.customerId ? { customerId: filters.customerId } : {}),
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.dateFrom || filters.dateTo
+      ? { createdAt: { ...(filters.dateFrom ? { gte: filters.dateFrom } : {}), ...(filters.dateTo ? { lte: filters.dateTo } : {}) } }
+      : {}),
+    ...(filters.amountMin != null || filters.amountMax != null
+      ? { total: { ...(filters.amountMin != null ? { gte: filters.amountMin } : {}), ...(filters.amountMax != null ? { lte: filters.amountMax } : {}) } }
+      : {}),
+    ...(filters.search
+      ? {
+          OR: [
+            { quotationNo: { contains: filters.search, mode: 'insensitive' } },
+            { title: { contains: filters.search, mode: 'insensitive' } },
+          ],
+        }
+      : {}),
+  };
+
+  const orderBy: Prisma.QuotationOrderByWithRelationInput =
+    filters.sort === 'oldest'
+      ? { createdAt: 'asc' }
+      : filters.sort === 'amount_high'
+        ? { total: 'desc' }
+        : filters.sort === 'amount_low'
+          ? { total: 'asc' }
+          : { createdAt: 'desc' };
+
   const [items, total] = await Promise.all([
     prisma.quotation.findMany({
       where,
-      include: { lineItems: true, customer: true },
-      orderBy: { createdAt: 'desc' },
+      include: { lineItems: true, customer: true, serviceRequest: { include: { serviceCategory: true, service: true } } },
+      orderBy,
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
     prisma.quotation.count({ where }),
   ]);
   return { items, total, page: filters.page, pageSize: filters.pageSize };
+}
+
+/** INSPECTOR: view-only access to quotations tied to inspections they performed. */
+export async function listQuotationsForInspector(inspectorId: string) {
+  return prisma.quotation.findMany({
+    where: { siteInspection: { inspectorId } },
+    include: { lineItems: true, customer: true, serviceRequest: { include: { serviceCategory: true, service: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+interface UpdateQuotationInput {
+  title?: string | null;
+  description?: string | null;
+  lineItems?: LineItemInput[];
+  discountType?: 'PERCENTAGE' | 'FIXED' | null;
+  discountValue?: number | null;
+  discountReason?: string | null;
+  vatPercentage?: number;
+  validityDays?: number;
+  notes?: string | null;
+  termsAndConditions?: string | null;
+}
+
+/** General edits — DRAFT only. Recomputes cost fields when lineItems/discount/VAT change. */
+export async function updateQuotation(actor: AuthUser, id: string, input: UpdateQuotationInput) {
+  const before = await getQuotationById(id);
+  if (before.status !== QuotationStatus.DRAFT) {
+    throw HttpError.badRequest('Only a Draft Quotation can be edited — revise it instead to create a new version');
+  }
+
+  const data: Prisma.QuotationUpdateInput = {
+    title: input.title,
+    description: input.description,
+    discountReason: input.discountReason,
+    notes: input.notes,
+    termsAndConditions: input.termsAndConditions,
+  };
+
+  if (input.lineItems || input.discountType !== undefined || input.discountValue !== undefined || input.vatPercentage !== undefined) {
+    const lineItems: LineItemInput[] =
+      input.lineItems ??
+      before.lineItems.map((li) => ({
+        serviceCategoryId: li.serviceCategoryId ?? undefined,
+        serviceId: li.serviceId ?? undefined,
+        category: li.category,
+        itemName: li.itemName ?? undefined,
+        description: li.description,
+        quantity: Number(li.quantity),
+        unit: li.unit,
+        unitPrice: Number(li.unitPrice),
+      }));
+    const discountType = input.discountType !== undefined ? (input.discountType ?? undefined) : (before.discountType ?? undefined);
+    const discountValue = input.discountValue !== undefined ? (input.discountValue ?? undefined) : before.discountValue != null ? Number(before.discountValue) : undefined;
+    const vatPercent = input.vatPercentage ?? Number(before.taxRatePercent);
+
+    const { materialCost, laborCost, transportationCost, subtotal, discountAmount, taxAmount, total } = computeTotals(
+      lineItems,
+      vatPercent,
+      discountType,
+      discountValue,
+    );
+
+    Object.assign(data, {
+      materialCost,
+      laborCost,
+      transportationCost,
+      subtotal,
+      taxRatePercent: vatPercent,
+      taxAmount,
+      discountType,
+      discountValue,
+      discountAmount,
+      total,
+    });
+
+    if (input.validityDays) {
+      data.validityDays = input.validityDays;
+      data.validUntil = new Date(Date.now() + input.validityDays * 24 * 60 * 60_000);
+    }
+
+    if (input.lineItems) {
+      await prisma.quotationLineItem.deleteMany({ where: { quotationId: id } });
+      data.lineItems = {
+        create: input.lineItems.map((item) => ({
+          serviceCategoryId: item.serviceCategoryId,
+          serviceId: item.serviceId,
+          category: item.category,
+          itemName: item.itemName,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          subtotal: round2(item.quantity * item.unitPrice),
+        })),
+      };
+    }
+  }
+
+  const quotation = await prisma.quotation.update({ where: { id }, data, include: { lineItems: true } });
+  await recordAudit({ actorId: actor.id, action: 'UPDATE', entityType: 'Quotation', entityId: id, before, after: quotation });
+  return quotation;
+}
+
+export async function deleteQuotation(actor: AuthUser, id: string) {
+  const quotation = await getQuotationById(id);
+  if (quotation.status !== QuotationStatus.DRAFT) {
+    throw HttpError.conflict('Only a Draft Quotation can be deleted — cancel it instead');
+  }
+  await prisma.quotation.delete({ where: { id } });
+  await recordAudit({ actorId: actor.id, action: 'DELETE', entityType: 'Quotation', entityId: id, before: quotation });
 }
 
 export async function approveDiscount(actor: AuthUser, id: string) {
@@ -153,10 +424,9 @@ export async function sendQuotation(actor: AuthUser, id: string) {
     return sent;
   });
 
-  const customer = await prisma.customer.findUnique({ where: { id: quotation.customerId } });
-  if (customer?.userId) {
+  if (quotation.customer.userId) {
     await notify({
-      userId: customer.userId,
+      userId: quotation.customer.userId,
       type: NotificationType.QUOTATION_SENT,
       title: 'A new Quotation is ready for your review',
       body: `${quotation.quotationNo} — total ${quotation.total}`,
@@ -169,7 +439,57 @@ export async function sendQuotation(actor: AuthUser, id: string) {
   return updated;
 }
 
-/** FR-QUOTE-07: Customer approves or rejects; BR-QUOTE-01 makes an Approved Quotation immutable. */
+/** Manual expire (a Sent Quotation past its validUntil date), reachable via PATCH /:id/status. */
+async function expireQuotation(actor: AuthUser, id: string) {
+  const quotation = await getQuotationById(id);
+  if (quotation.status !== QuotationStatus.SENT) {
+    throw HttpError.badRequest('Only a Sent Quotation can be marked Expired');
+  }
+  const updated = await prisma.quotation.update({ where: { id }, data: { status: QuotationStatus.EXPIRED } });
+  await prisma.quotationAuditLog.create({ data: { quotationId: id, action: 'EXPIRED', actorId: actor.id } });
+  await recordAudit({ actorId: actor.id, action: 'EXPIRE', entityType: 'Quotation', entityId: id, before: quotation, after: updated });
+  return updated;
+}
+
+/** Staff withdrawal — allowed only from DRAFT or SENT (not from any terminal state). */
+async function cancelQuotation(actor: AuthUser, id: string) {
+  const quotation = await getQuotationById(id);
+  if (quotation.status !== QuotationStatus.DRAFT && quotation.status !== QuotationStatus.SENT) {
+    throw HttpError.badRequest(`A Quotation in ${quotation.status} status cannot be cancelled`);
+  }
+  const updated = await prisma.quotation.update({ where: { id }, data: { status: QuotationStatus.CANCELLED } });
+  await prisma.quotationAuditLog.create({ data: { quotationId: id, action: 'CANCELLED', actorId: actor.id } });
+  await recordAudit({ actorId: actor.id, action: 'CANCEL', entityType: 'Quotation', entityId: id, before: quotation, after: updated });
+  return updated;
+}
+
+const VALID_STATUS_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
+  DRAFT: [QuotationStatus.SENT, QuotationStatus.CANCELLED],
+  SENT: [QuotationStatus.APPROVED, QuotationStatus.REJECTED, QuotationStatus.EXPIRED, QuotationStatus.CANCELLED],
+  APPROVED: [],
+  REJECTED: [],
+  EXPIRED: [],
+  CANCELLED: [],
+  REVISED: [],
+};
+
+/** Staff-driven status change (Section 2, PATCH /:id/status) — validates the transition table before delegating. */
+export async function updateQuotationStatus(actor: AuthUser, id: string, status: QuotationStatus) {
+  const quotation = await getQuotationById(id);
+  const allowed = VALID_STATUS_TRANSITIONS[quotation.status] ?? [];
+  if (!allowed.includes(status)) {
+    throw HttpError.badRequest(`Cannot transition a Quotation from ${quotation.status} to ${status}`);
+  }
+
+  if (status === QuotationStatus.SENT) return sendQuotation(actor, id);
+  if (status === QuotationStatus.APPROVED) return respondToQuotation(actor, id, 'APPROVED');
+  if (status === QuotationStatus.REJECTED) return respondToQuotation(actor, id, 'REJECTED');
+  if (status === QuotationStatus.EXPIRED) return expireQuotation(actor, id);
+  if (status === QuotationStatus.CANCELLED) return cancelQuotation(actor, id);
+  throw HttpError.badRequest('Unsupported status transition');
+}
+
+/** FR-QUOTE-07: Customer (or staff on their behalf) approves/rejects; records a QuotationApproval and locks the record. */
 export async function respondToQuotation(actor: AuthUser, id: string, decision: 'APPROVED' | 'REJECTED', comment?: string) {
   const quotation = await getQuotationById(id);
   if (quotation.status !== QuotationStatus.SENT) {
@@ -188,8 +508,28 @@ export async function respondToQuotation(actor: AuthUser, id: string, decision: 
       data: { status: decision === 'APPROVED' ? ServiceRequestStatus.APPROVED : ServiceRequestStatus.REJECTED },
     });
     await tx.quotationAuditLog.create({ data: { quotationId: id, action: decision, actorId: actor.id, note: comment } });
+    await tx.quotationApproval.create({
+      data: {
+        quotationId: id,
+        customerId: quotation.customerId,
+        action: decision === 'APPROVED' ? QuotationApprovalAction.APPROVED : QuotationApprovalAction.REJECTED,
+        comments: comment,
+      },
+    });
     return result;
   });
+
+  const notificationType = decision === 'APPROVED' ? NotificationType.QUOTATION_APPROVED : NotificationType.QUOTATION_REJECTED;
+  if (quotation.createdById) {
+    await notify({
+      userId: quotation.createdById,
+      type: notificationType,
+      title: `Quotation ${decision === 'APPROVED' ? 'approved' : 'rejected'} by customer`,
+      body: `${quotation.quotationNo}`,
+      entityType: 'Quotation',
+      entityId: id,
+    });
+  }
 
   await recordAudit({ actorId: actor.id, action: decision, entityType: 'Quotation', entityId: id, before: quotation, after: updated });
   return updated;
@@ -202,4 +542,81 @@ export async function expireOverdueQuotations() {
     data: { status: QuotationStatus.EXPIRED },
   });
   return result.count;
+}
+
+// ── PDF & Email ──────────────────────────────────────────────────────────────
+
+export async function getQuotationPdfBuffer(id: string) {
+  const quotation = await prisma.quotation.findUnique({
+    where: { id },
+    include: { customer: true, serviceRequest: { include: { serviceCategory: true, service: true } }, siteInspection: true, lineItems: true },
+  });
+  if (!quotation) throw HttpError.notFound('Quotation not found');
+  return { quotation, pdf: await generateQuotationPdf(quotation) };
+}
+
+export async function emailQuotation(actor: AuthUser, id: string) {
+  const { quotation, pdf } = await getQuotationPdfBuffer(id);
+  if (!quotation.customer.email) {
+    throw HttpError.badRequest('This customer has no email address on file');
+  }
+
+  const html = `
+    <p>Dear ${quotation.customer.fullName},</p>
+    <p>Please find attached Quotation <strong>${quotation.quotationNo}</strong> for your review.</p>
+    <p><strong>Project:</strong> ${quotation.serviceRequest.service?.serviceName ?? quotation.serviceRequest.serviceCategory.name}<br/>
+    <strong>Total Amount:</strong> ${quotation.total}</p>
+    <p>Please review the attached document and approve or reject it from your customer portal.</p>
+  `;
+
+  try {
+    await sendMail({
+      to: quotation.customer.email,
+      subject: `Quotation ${quotation.quotationNo} from your service provider`,
+      html,
+      attachments: [{ filename: `${quotation.quotationNo}.pdf`, content: pdf, contentType: 'application/pdf' }],
+    });
+    const updated = await prisma.quotation.update({ where: { id }, data: { emailSentAt: new Date(), emailStatus: 'SENT' } });
+    await prisma.quotationAuditLog.create({ data: { quotationId: id, action: 'EMAILED', actorId: actor.id } });
+    return updated;
+  } catch (err) {
+    await prisma.quotation.update({ where: { id }, data: { emailStatus: 'FAILED' } });
+    throw err;
+  }
+}
+
+// ── Statistics (Section 7 — Dashboard Integration) ───────────────────────────
+
+export async function getQuotationStatistics() {
+  const [total, draft, sent, approved, rejected, revenueAgg, byStatus, monthlyRaw] = await Promise.all([
+    prisma.quotation.count(),
+    prisma.quotation.count({ where: { status: QuotationStatus.DRAFT } }),
+    prisma.quotation.count({ where: { status: QuotationStatus.SENT } }),
+    prisma.quotation.count({ where: { status: QuotationStatus.APPROVED } }),
+    prisma.quotation.count({ where: { status: QuotationStatus.REJECTED } }),
+    prisma.quotation.aggregate({ _sum: { total: true }, where: { status: QuotationStatus.APPROVED } }),
+    prisma.quotation.groupBy({ by: ['status'], _count: { _all: true } }),
+    prisma.$queryRaw<{ month: string; value: number }[]>`
+      SELECT to_char("createdAt", 'YYYY-MM') AS month, COALESCE(SUM(total), 0)::float AS value
+      FROM "Quotation"
+      WHERE "createdAt" >= NOW() - INTERVAL '6 months'
+      GROUP BY month
+      ORDER BY month ASC
+    `,
+  ]);
+
+  const respondedCount = approved + rejected;
+  const approvalRatePercent = respondedCount > 0 ? round2((approved / respondedCount) * 100) : null;
+
+  return {
+    totalQuotations: total,
+    draftQuotations: draft,
+    sentQuotations: sent,
+    approvedQuotations: approved,
+    rejectedQuotations: rejected,
+    totalRevenueValue: Number(revenueAgg._sum.total ?? 0),
+    approvalRatePercent,
+    byStatus: byStatus.map((row) => ({ status: row.status, count: row._count._all })),
+    monthlyValue: monthlyRaw.map((row) => ({ month: row.month, value: Number(row.value) })),
+  };
 }

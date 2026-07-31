@@ -77,6 +77,23 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, retry
   return res.json() as Promise<T>;
 }
 
+/** Fetches a binary response (e.g. a PDF) as a Blob, reusing the same auth/refresh handling as apiFetch. */
+export async function apiFetchBlob(path: string, retry = true): Promise<Blob> {
+  const accessToken = getAccessToken();
+  const res = await fetch(`${API_URL}${path}`, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
+
+  if (res.status === 401 && retry) {
+    const newToken = await refreshAccessToken();
+    if (newToken) return apiFetchBlob(path, false);
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error ?? res.statusText, body.details);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),

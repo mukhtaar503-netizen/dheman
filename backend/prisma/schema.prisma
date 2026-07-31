@@ -119,11 +119,23 @@ enum QuotationStatus {
   REJECTED
   EXPIRED
   REVISED
+  CANCELLED
 }
 
 enum DiscountType {
   PERCENTAGE
   FIXED
+}
+
+enum QuotationItemCategory {
+  MATERIAL
+  LABOR
+  TRANSPORTATION
+}
+
+enum QuotationApprovalAction {
+  APPROVED
+  REJECTED
 }
 
 enum ProjectStatus {
@@ -369,6 +381,8 @@ model CompanySettings {
   name                      String
   logoUrl                   String?
   address                   String?
+  phone                     String?
+  email                     String?
   taxRegistrationNo         String?
   taxRatePercent            Decimal  @default(0) @db.Decimal(5, 2)
   currency                  String   @default("USD")
@@ -416,6 +430,7 @@ model Customer {
   documents          CustomerDocument[]
   serviceRequests    ServiceRequest[]
   quotations         Quotation[]
+  quotationApprovals QuotationApproval[]
   projects           Project[]
   invoices           Invoice[]
   payments           Payment[]
@@ -631,6 +646,7 @@ model SiteInspection {
   checklistItems InspectionChecklistItem[]
   measurements   InspectionMeasurement[]
   photos         InspectionPhoto[]
+  quotations     Quotation[]
 
   @@index([status])
 }
@@ -672,51 +688,89 @@ model Quotation {
   id                   String          @id @default(uuid())
   quotationNo          String          @unique
   serviceRequestId     String
+  siteInspectionId     String?
   customerId           String
   version              Int             @default(1)
   status               QuotationStatus @default(DRAFT)
+  title                String?
+  description          String?
+  materialCost         Decimal         @default(0) @db.Decimal(12, 2)
+  laborCost            Decimal         @default(0) @db.Decimal(12, 2)
+  transportationCost   Decimal         @default(0) @db.Decimal(12, 2)
   subtotal             Decimal         @default(0) @db.Decimal(12, 2)
+  // "VAT" in the spec — reuses the system's existing tax fields (also read directly by
+  // Invoice generation) rather than adding a parallel vatPercentage/vatAmount pair that
+  // could drift out of sync with it.
   taxRatePercent       Decimal         @default(0) @db.Decimal(5, 2)
   taxAmount            Decimal         @default(0) @db.Decimal(12, 2)
   discountType         DiscountType?
   discountValue        Decimal?        @db.Decimal(12, 2)
+  discountAmount       Decimal         @default(0) @db.Decimal(12, 2)
   discountReason       String?
   discountApprovedById String?
   total                Decimal         @default(0) @db.Decimal(12, 2)
+  validityDays         Int?
   validUntil           DateTime?
+  notes                String?
+  termsAndConditions   String?
   sentAt               DateTime?
   respondedAt          DateTime?
   customerComment      String?
+  emailSentAt          DateTime?
+  emailStatus          String?
   createdById          String?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
   serviceRequest ServiceRequest      @relation(fields: [serviceRequestId], references: [id])
+  siteInspection SiteInspection?     @relation(fields: [siteInspectionId], references: [id])
   customer       Customer            @relation(fields: [customerId], references: [id])
   createdBy      User?               @relation("QuotationCreatedBy", fields: [createdById], references: [id])
   lineItems      QuotationLineItem[]
   auditLogs      QuotationAuditLog[]
+  approvals      QuotationApproval[]
   project        Project?
 
   @@index([status])
+  @@index([siteInspectionId])
 }
 
 model QuotationLineItem {
-  id                String  @id @default(uuid())
+  id                String                @id @default(uuid())
   quotationId       String
   serviceCategoryId String?
   serviceId         String?
+  category          QuotationItemCategory @default(MATERIAL)
+  itemName          String?
   description       String
-  quantity          Decimal @db.Decimal(10, 2)
+  quantity          Decimal               @db.Decimal(10, 2)
   unit              String
-  unitPrice         Decimal @db.Decimal(12, 2)
-  subtotal          Decimal @db.Decimal(12, 2)
+  unitPrice         Decimal               @db.Decimal(12, 2)
+  subtotal          Decimal               @db.Decimal(12, 2)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   quotation       Quotation        @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   serviceCategory ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
   service         Service?         @relation(fields: [serviceId], references: [id])
 
   @@index([serviceId])
+  @@index([category])
+}
+
+model QuotationApproval {
+  id           String                  @id @default(uuid())
+  quotationId  String
+  customerId   String
+  action       QuotationApprovalAction
+  comments     String?
+  approvedDate DateTime                @default(now())
+  createdAt    DateTime                @default(now())
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id])
+
+  @@index([quotationId])
 }
 
 model QuotationAuditLog {
