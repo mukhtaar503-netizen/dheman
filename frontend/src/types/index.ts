@@ -239,7 +239,7 @@ export interface Payment {
   invoice: { id: string; invoiceNo: string };
 }
 
-export type ServiceCategoryGroup = 'FURNITURE' | 'ALUMINUM' | 'CCTV' | 'PVC';
+export type ServiceCategoryGroup = 'FURNITURE' | 'ALUMINUM' | 'CCTV' | 'PVC' | 'MOVING';
 export type ServiceStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface Service {
@@ -250,6 +250,10 @@ export interface Service {
   durationMinutes?: number | null;
   estimatedCost?: string | number | null;
   requiredMaterials: string[];
+  features: string[];
+  imageUrl?: string | null;
+  displayOrder: number;
+  notes?: string | null;
   status: ServiceStatus;
   createdAt: string;
   updatedAt: string;
@@ -260,4 +264,6 @@ export interface ServiceStatistics {
   activeServices: number;
   inactiveServices: number;
   byCategory: { category: ServiceCategoryGroup; count: number }[];
+  recentlyAdded: Service[];
+  mostFrequentlyUsed: (Service & { usageCount: number })[];
 }

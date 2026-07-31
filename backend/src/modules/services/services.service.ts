@@ -12,6 +12,10 @@ interface ServiceInput {
   durationMinutes?: number | null;
   estimatedCost?: number | null;
   requiredMaterials?: string[];
+  features?: string[];
+  imageUrl?: string | null;
+  displayOrder?: number;
+  notes?: string | null;
   status?: ServiceStatus;
 }
 
@@ -31,6 +35,10 @@ export async function createService(actor: AuthUser | undefined, input: ServiceI
       durationMinutes: input.durationMinutes,
       estimatedCost: input.estimatedCost,
       requiredMaterials: input.requiredMaterials ?? [],
+      features: input.features ?? [],
+      imageUrl: input.imageUrl,
+      displayOrder: input.displayOrder,
+      notes: input.notes,
       status: input.status,
       createdById: actor?.id,
     },
@@ -43,7 +51,7 @@ interface ListServicesFilters {
   search?: string;
   category?: ServiceCategoryGroup;
   status?: ServiceStatus;
-  sort: 'newest' | 'oldest' | 'alphabetical' | 'cost_high' | 'cost_low';
+  sort: 'newest' | 'oldest' | 'alphabetical' | 'cost_high' | 'cost_low' | 'display_order';
   page: number;
   pageSize: number;
 }
@@ -71,7 +79,9 @@ export async function listServices(filters: ListServicesFilters) {
           ? { estimatedCost: 'desc' }
           : filters.sort === 'cost_low'
             ? { estimatedCost: 'asc' }
-            : { createdAt: 'desc' };
+            : filters.sort === 'display_order'
+              ? { displayOrder: 'asc' }
+              : { createdAt: 'desc' };
 
   const [items, total] = await Promise.all([
     prisma.service.findMany({
@@ -134,17 +144,39 @@ export async function setServiceStatus(actor: AuthUser, id: string, status: Serv
 }
 
 export async function getServiceStatistics() {
-  const [total, active, inactive, byCategory] = await Promise.all([
+  const [total, active, inactive, byCategory, recentlyAdded, usageCounts] = await Promise.all([
     prisma.service.count(),
     prisma.service.count({ where: { status: ServiceStatus.ACTIVE } }),
     prisma.service.count({ where: { status: ServiceStatus.INACTIVE } }),
     prisma.service.groupBy({ by: ['category'], _count: { _all: true } }),
+    prisma.service.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+    prisma.quotationLineItem.groupBy({
+      by: ['serviceId'],
+      where: { serviceId: { not: null } },
+      _count: { serviceId: true },
+      orderBy: { _count: { serviceId: 'desc' } },
+      take: 5,
+    }),
   ]);
+
+  const usedServiceIds = usageCounts.map((row) => row.serviceId).filter((id): id is string => id !== null);
+  const usedServices = usedServiceIds.length
+    ? await prisma.service.findMany({ where: { id: { in: usedServiceIds } } })
+    : [];
+  const serviceById = new Map(usedServices.map((s) => [s.id, s]));
+  const mostFrequentlyUsed = usageCounts
+    .map((row) => {
+      const service = row.serviceId ? serviceById.get(row.serviceId) : undefined;
+      return service ? { ...service, usageCount: row._count.serviceId } : null;
+    })
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 
   return {
     totalServices: total,
     activeServices: active,
     inactiveServices: inactive,
     byCategory: byCategory.map((row) => ({ category: row.category, count: row._count._all })),
+    recentlyAdded,
+    mostFrequentlyUsed,
   };
 }

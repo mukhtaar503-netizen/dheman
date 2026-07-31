@@ -141,6 +141,18 @@ async function main() {
     });
   }
 
+  const PVC_FEATURES = ['High-Quality PVC Materials', 'Modern Interior Designs', 'Professional Installation', 'Durable & Easy-to-Maintain Solutions'];
+  const MOVING_FEATURES = ['Safe & Reliable Handling', 'Professional Moving Team', 'On-Time Service', 'Secure Packing & Transportation'];
+
+  // Renaming an already-seeded service: upsert alone would leave the old row behind as
+  // an orphaned duplicate (upsert matches on the *new* name, which doesn't exist yet on
+  // a database seeded before this rename). Rename it in place first so re-running seed
+  // against an already-migrated database converges instead of duplicating.
+  await prisma.service.updateMany({
+    where: { serviceName: 'Decorative PVC Designs', category: ServiceCategoryGroup.PVC },
+    data: { serviceName: 'Decorative PVC Panels' },
+  });
+
   // Phase 05 — the installable-services catalog (distinct from ServiceCategory above).
   const services: {
     serviceName: string;
@@ -149,6 +161,7 @@ async function main() {
     durationMinutes: number;
     estimatedCost: number;
     requiredMaterials: string[];
+    features?: string[];
   }[] = [
     {
       serviceName: 'Kitchen Cabinets',
@@ -269,6 +282,7 @@ async function main() {
       durationMinutes: 300,
       estimatedCost: 400,
       requiredMaterials: ['PVC panels', 'Support frame', 'Fasteners'],
+      features: PVC_FEATURES,
     },
     {
       serviceName: 'PVC Wall Panels',
@@ -277,14 +291,34 @@ async function main() {
       durationMinutes: 240,
       estimatedCost: 350,
       requiredMaterials: ['PVC panels', 'Adhesive', 'Trim'],
+      features: PVC_FEATURES,
     },
     {
-      serviceName: 'Decorative PVC Designs',
+      serviceName: 'Decorative PVC Panels',
       category: ServiceCategoryGroup.PVC,
       description: 'Decorative/patterned PVC ceiling or wall design work.',
       durationMinutes: 300,
       estimatedCost: 500,
       requiredMaterials: ['Decorative PVC panels', 'LED strip (optional)', 'Fasteners'],
+      features: PVC_FEATURES,
+    },
+    {
+      serviceName: 'PVC Partitions',
+      category: ServiceCategoryGroup.PVC,
+      description: 'PVC-panelled partition walls for offices and interiors.',
+      durationMinutes: 300,
+      estimatedCost: 450,
+      requiredMaterials: ['PVC panels', 'Support frame', 'Fasteners'],
+      features: PVC_FEATURES,
+    },
+    {
+      serviceName: 'PVC Doors',
+      category: ServiceCategoryGroup.PVC,
+      description: 'Supply and installation of PVC-panelled doors.',
+      durationMinutes: 180,
+      estimatedCost: 250,
+      requiredMaterials: ['PVC door panel', 'Hinges', 'Locks'],
+      features: PVC_FEATURES,
     },
     {
       serviceName: 'PVC Maintenance Services',
@@ -293,17 +327,74 @@ async function main() {
       durationMinutes: 120,
       estimatedCost: 120,
       requiredMaterials: ['Replacement panels (as needed)', 'Adhesive'],
+      features: PVC_FEATURES,
+    },
+    {
+      serviceName: 'House Moving',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'Full-service residential moving.',
+      durationMinutes: 360,
+      estimatedCost: 600,
+      requiredMaterials: ['Moving boxes', 'Packing tape', 'Furniture blankets', 'Dolly'],
+      features: MOVING_FEATURES,
+    },
+    {
+      serviceName: 'Office Relocation',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'End-to-end office relocation, including IT equipment handling.',
+      durationMinutes: 480,
+      estimatedCost: 1500,
+      requiredMaterials: ['Moving boxes', 'Anti-static wrap', 'Furniture blankets', 'Dolly'],
+      features: MOVING_FEATURES,
+    },
+    {
+      serviceName: 'Furniture Packing',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'Professional packing of furniture and fragile items for transport.',
+      durationMinutes: 180,
+      estimatedCost: 200,
+      requiredMaterials: ['Furniture blankets', 'Bubble wrap', 'Packing tape', 'Stretch wrap'],
+      features: MOVING_FEATURES,
+    },
+    {
+      serviceName: 'Loading & Unloading',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'Loading and unloading labor for a move.',
+      durationMinutes: 120,
+      estimatedCost: 150,
+      requiredMaterials: ['Dolly', 'Straps', 'Furniture blankets'],
+      features: MOVING_FEATURES,
+    },
+    {
+      serviceName: 'Transportation',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'Vehicle and driver for transporting goods between locations.',
+      durationMinutes: 120,
+      estimatedCost: 180,
+      requiredMaterials: ['Tie-down straps', 'Moving blankets'],
+      features: MOVING_FEATURES,
+    },
+    {
+      serviceName: 'Furniture Assembly & Disassembly',
+      category: ServiceCategoryGroup.MOVING,
+      description: 'Disassembly before a move and reassembly at the new location.',
+      durationMinutes: 150,
+      estimatedCost: 180,
+      requiredMaterials: ['Tool kit', 'Fasteners (assorted)', 'Labeling tags'],
+      features: MOVING_FEATURES,
     },
   ];
 
   for (const svc of services) {
     await prisma.service.upsert({
       where: { serviceName_category: { serviceName: svc.serviceName, category: svc.category } },
-      update: {},
+      // Only backfill `features` on rows that already exist — leaves every other
+      // admin-editable field (cost, duration, description, status) untouched on re-seed.
+      update: { features: svc.features ?? [] },
       create: svc,
     });
   }
-  console.log(`Seeded ${services.length} services across 4 categories.`);
+  console.log(`Seeded ${services.length} services across 5 categories.`);
 
   console.log('Seed complete.');
 }

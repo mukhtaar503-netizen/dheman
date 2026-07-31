@@ -160,6 +160,7 @@ enum ServiceCategoryGroup {
   ALUMINUM
   CCTV
   PVC
+  MOVING
 }
 
 enum ServiceStatus {
@@ -533,6 +534,10 @@ model Service {
   durationMinutes   Int?
   estimatedCost     Decimal?             @db.Decimal(12, 2)
   requiredMaterials String[]             @default([])
+  features          String[]             @default([])
+  imageUrl          String?
+  displayOrder      Int                  @default(0)
+  notes             String?
   status            ServiceStatus        @default(ACTIVE)
   createdById       String?
   createdAt         DateTime             @default(now())
@@ -544,6 +549,7 @@ model Service {
   @@unique([serviceName, category])
   @@index([category])
   @@index([status])
+  @@index([displayOrder])
 }
 
 model ServiceRequest {

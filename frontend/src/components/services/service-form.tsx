@@ -19,10 +19,13 @@ import type { Service } from '@/types';
 
 const serviceFormSchema = z.object({
   serviceName: z.string().min(2, 'Service name must be at least 2 characters'),
-  category: z.enum(['FURNITURE', 'ALUMINUM', 'CCTV', 'PVC']),
+  category: z.enum(['FURNITURE', 'ALUMINUM', 'CCTV', 'PVC', 'MOVING']),
   description: z.string().optional(),
   durationMinutes: z.string().optional(),
   estimatedCost: z.string().optional(),
+  imageUrl: z.string().optional(),
+  displayOrder: z.string().optional(),
+  notes: z.string().optional(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 });
 
@@ -35,6 +38,9 @@ function toFormValues(service?: Service): ServiceFormValues {
     description: service?.description ?? '',
     durationMinutes: service?.durationMinutes ? String(service.durationMinutes) : '',
     estimatedCost: service?.estimatedCost !== undefined && service?.estimatedCost !== null ? String(service.estimatedCost) : '',
+    imageUrl: service?.imageUrl ?? '',
+    displayOrder: service?.displayOrder !== undefined && service?.displayOrder !== null ? String(service.displayOrder) : '',
+    notes: service?.notes ?? '',
     status: service?.status ?? 'ACTIVE',
   };
 }
@@ -45,6 +51,8 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
   const { toast } = useToast();
   const [materials, setMaterials] = React.useState<string[]>(initial?.requiredMaterials ?? []);
   const [materialInput, setMaterialInput] = React.useState('');
+  const [features, setFeatures] = React.useState<string[]>(initial?.features ?? []);
+  const [featureInput, setFeatureInput] = React.useState('');
 
   const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceFormSchema),
@@ -63,6 +71,18 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
     setMaterials(materials.filter((m) => m !== value));
   }
 
+  function addFeature() {
+    const value = featureInput.trim();
+    if (value && !features.includes(value)) {
+      setFeatures([...features, value]);
+    }
+    setFeatureInput('');
+  }
+
+  function removeFeature(value: string) {
+    setFeatures(features.filter((f) => f !== value));
+  }
+
   const mutation = useMutation({
     mutationFn: async (values: ServiceFormValues) => {
       const payload = {
@@ -72,6 +92,10 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
         durationMinutes: values.durationMinutes ? Number(values.durationMinutes) : undefined,
         estimatedCost: values.estimatedCost ? Number(values.estimatedCost) : undefined,
         requiredMaterials: materials,
+        features,
+        imageUrl: values.imageUrl || undefined,
+        displayOrder: values.displayOrder ? Number(values.displayOrder) : undefined,
+        notes: values.notes || undefined,
         status: values.status,
       };
       if (serviceId) return api.patch(`/services/${serviceId}`, payload);
@@ -114,6 +138,7 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
               <SelectItem value="ALUMINUM">Aluminum Installation</SelectItem>
               <SelectItem value="CCTV">CCTV Installation</SelectItem>
               <SelectItem value="PVC">PVC Installation</SelectItem>
+              <SelectItem value="MOVING">Moving &amp; Relocation Services</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -147,6 +172,22 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
         </div>
       </section>
 
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="imageUrl">Image / icon URL (optional)</Label>
+          <Input id="imageUrl" type="url" placeholder="https://..." {...form.register('imageUrl')} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="displayOrder">Display order</Label>
+          <Input id="displayOrder" type="number" min="0" {...form.register('displayOrder')} />
+        </div>
+      </section>
+
+      <div className="space-y-1">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea id="notes" rows={2} {...form.register('notes')} />
+      </div>
+
       <div className="space-y-2">
         <Label>Required materials</Label>
         <div className="flex gap-2">
@@ -171,6 +212,38 @@ export function ServiceForm({ serviceId, initial }: { serviceId?: string; initia
               <Badge key={m} variant="secondary" className="gap-1 pr-1">
                 {m}
                 <button type="button" onClick={() => removeMaterial(m)} className="rounded-full hover:bg-muted-foreground/20">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Service features</Label>
+        <div className="flex gap-2">
+          <Input
+            value={featureInput}
+            onChange={(e) => setFeatureInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addFeature();
+              }
+            }}
+            placeholder="e.g. Professional Installation"
+          />
+          <Button type="button" variant="outline" onClick={addFeature}>
+            Add
+          </Button>
+        </div>
+        {features.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {features.map((f) => (
+              <Badge key={f} variant="secondary" className="gap-1 pr-1">
+                {f}
+                <button type="button" onClick={() => removeFeature(f)} className="rounded-full hover:bg-muted-foreground/20">
                   <X className="h-3 w-3" />
                 </button>
               </Badge>

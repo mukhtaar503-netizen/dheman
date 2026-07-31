@@ -28,6 +28,7 @@ const CATEGORY_LABEL: Record<ServiceCategoryGroup, string> = {
   ALUMINUM: 'Aluminum Installation',
   CCTV: 'CCTV Installation',
   PVC: 'PVC Installation',
+  MOVING: 'Moving & Relocation Services',
 };
 
 const currency = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -141,8 +142,9 @@ export default function ServiceDetailPage() {
               value={service.estimatedCost !== null && service.estimatedCost !== undefined ? currency(Number(service.estimatedCost)) : undefined}
             />
             <Field label="Status" value={service.status} />
-            <Field label="Created" value={new Date(service.createdAt).toLocaleDateString()} />
-            <Field label="Last updated" value={new Date(service.updatedAt).toLocaleDateString()} />
+            <Field label="Display order" value={service.displayOrder} />
+            <Field label="Created Date" value={new Date(service.createdAt).toLocaleDateString()} />
+            <Field label="Updated Date" value={new Date(service.updatedAt).toLocaleDateString()} />
           </div>
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Required materials</p>
@@ -158,6 +160,21 @@ export default function ServiceDetailPage() {
               </div>
             )}
           </div>
+          <div>
+            <p className="mb-1 text-xs text-muted-foreground">Included features</p>
+            {service.features.length === 0 ? (
+              <p className="text-sm text-muted-foreground">None specified</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {service.features.map((f) => (
+                  <Badge key={f} variant="outline">
+                    {f}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+          {service.notes && <Field label="Notes" value={service.notes} />}
         </CardContent>
       </Card>
 

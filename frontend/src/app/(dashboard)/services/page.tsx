@@ -32,6 +32,7 @@ const CATEGORY_LABEL: Record<ServiceCategoryGroup, string> = {
   ALUMINUM: 'Aluminum Installation',
   CCTV: 'CCTV Installation',
   PVC: 'PVC Installation',
+  MOVING: 'Moving & Relocation Services',
 };
 
 const currency = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
@@ -46,6 +47,7 @@ function StatTile({ label, value }: { label: string; value: number | string }) {
 }
 
 function StatisticsRow() {
+  const router = useRouter();
   const { data, isLoading } = useQuery({
     queryKey: ['service-statistics'],
     queryFn: () => api.get<ServiceStatistics>('/services/statistics'),
@@ -64,13 +66,61 @@ function StatisticsRow() {
   const byCategory = new Map(data.byCategory.map((c) => [c.category, c.count]));
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-      <StatTile label="Total Services" value={data.totalServices} />
-      <StatTile label="Active" value={data.activeServices} />
-      <StatTile label="Inactive" value={data.inactiveServices} />
-      <StatTile label="Furniture" value={byCategory.get('FURNITURE') ?? 0} />
-      <StatTile label="Aluminum" value={byCategory.get('ALUMINUM') ?? 0} />
-      <StatTile label="CCTV + PVC" value={(byCategory.get('CCTV') ?? 0) + (byCategory.get('PVC') ?? 0)} />
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatTile label="Total Services" value={data.totalServices} />
+        <StatTile label="Active" value={data.activeServices} />
+        <StatTile label="Inactive" value={data.inactiveServices} />
+        <StatTile label="Furniture" value={byCategory.get('FURNITURE') ?? 0} />
+        <StatTile label="Aluminum" value={byCategory.get('ALUMINUM') ?? 0} />
+        <StatTile label="CCTV" value={byCategory.get('CCTV') ?? 0} />
+        <StatTile label="PVC" value={byCategory.get('PVC') ?? 0} />
+        <StatTile label="Moving & Relocation" value={byCategory.get('MOVING') ?? 0} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recently Added Services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.recentlyAdded.length === 0 && <p className="text-sm text-muted-foreground">No services yet.</p>}
+            <ul className="divide-y divide-border">
+              {data.recentlyAdded.map((service) => (
+                <li
+                  key={service.id}
+                  className="flex cursor-pointer items-center justify-between py-2 text-sm hover:text-primary"
+                  onClick={() => router.push(`/services/${service.id}`)}
+                >
+                  <span className="font-medium">{service.serviceName}</span>
+                  <span className="text-xs text-muted-foreground">{CATEGORY_LABEL[service.category]}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Most Frequently Used Services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.mostFrequentlyUsed.length === 0 && <p className="text-sm text-muted-foreground">No usage data yet.</p>}
+            <ul className="divide-y divide-border">
+              {data.mostFrequentlyUsed.map((service) => (
+                <li
+                  key={service.id}
+                  className="flex cursor-pointer items-center justify-between py-2 text-sm hover:text-primary"
+                  onClick={() => router.push(`/services/${service.id}`)}
+                >
+                  <span className="font-medium">{service.serviceName}</span>
+                  <Badge variant="secondary">{service.usageCount}× used</Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -149,6 +199,7 @@ function ServicesList() {
               <SelectItem value="ALUMINUM">Aluminum Installation</SelectItem>
               <SelectItem value="CCTV">CCTV Installation</SelectItem>
               <SelectItem value="PVC">PVC Installation</SelectItem>
+              <SelectItem value="MOVING">Moving &amp; Relocation Services</SelectItem>
             </SelectContent>
           </Select>
           <Select
@@ -177,6 +228,7 @@ function ServicesList() {
               <SelectItem value="alphabetical">Alphabetical</SelectItem>
               <SelectItem value="cost_high">Highest Cost</SelectItem>
               <SelectItem value="cost_low">Lowest Cost</SelectItem>
+              <SelectItem value="display_order">Display Order</SelectItem>
             </SelectContent>
           </Select>
           <Button size="sm" onClick={() => router.push('/services/new')}>
