@@ -9,6 +9,7 @@ import * as controller from './inspections.controller';
 import {
   addInspectionPhotoSchema,
   inspectionIdParamsSchema,
+  listInspectionsSchema,
   requestInspectionPhotoUploadUrlSchema,
   rescheduleInspectionSchema,
   scheduleInspectionSchema,
@@ -111,6 +112,20 @@ router.post(
   asyncHandler(controller.addPhoto),
 );
 
+/**
+ * @openapi
+ * /inspections/{id}/pdf:
+ *   get:
+ *     summary: Print/download the Site Inspection report as a PDF
+ *     tags: [Inspections]
+ */
+router.get(
+  '/:id/pdf',
+  requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT, PERMISSIONS.INSPECTIONS_MANAGE),
+  validate(inspectionIdParamsSchema),
+  asyncHandler(controller.downloadInspectionPdf),
+);
+
 router.get('/:id', requirePermission(PERMISSIONS.INSPECTIONS_SUBMIT, PERMISSIONS.INSPECTIONS_MANAGE), validate(inspectionIdParamsSchema), asyncHandler(controller.getInspection));
 
 router.use(requirePermission(PERMISSIONS.INSPECTIONS_MANAGE));
@@ -119,7 +134,7 @@ router.use(requirePermission(PERMISSIONS.INSPECTIONS_MANAGE));
  * @openapi
  * /inspections:
  *   post:
- *     summary: Schedule a Site Inspection (FR-INSP-01)
+ *     summary: Register (schedule) a Site Inspection (FR-INSP-01)
  *     tags: [Inspections]
  */
 router.post('/', validate(scheduleInspectionSchema), asyncHandler(controller.scheduleInspection));
@@ -128,18 +143,27 @@ router.post('/', validate(scheduleInspectionSchema), asyncHandler(controller.sch
  * @openapi
  * /inspections:
  *   get:
- *     summary: List Site Inspections
+ *     summary: List Site Inspections — filterable by search/status/inspector/customer/project/date
  *     tags: [Inspections]
  */
-router.get('/', asyncHandler(controller.listInspections));
+router.get('/', validate(listInspectionsSchema), asyncHandler(controller.listInspections));
 
 /**
  * @openapi
  * /inspections/{id}:
  *   patch:
- *     summary: Reschedule or cancel a Site Inspection (FR-INSP-07)
+ *     summary: Update, reschedule, submit (draft -> scheduled), or cancel a Site Inspection (FR-INSP-07)
  *     tags: [Inspections]
  */
 router.patch('/:id', validate(rescheduleInspectionSchema), asyncHandler(controller.reschedule));
+
+/**
+ * @openapi
+ * /inspections/{id}:
+ *   delete:
+ *     summary: Delete a Site Inspection (blocked once a Quotation has been built from it)
+ *     tags: [Inspections]
+ */
+router.delete('/:id', validate(inspectionIdParamsSchema), asyncHandler(controller.deleteInspection));
 
 export default router;

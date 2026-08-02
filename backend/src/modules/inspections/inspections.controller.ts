@@ -25,6 +25,11 @@ export async function reschedule(req: Request, res: Response) {
   res.status(200).json(await service.reschedule(req.user!, req.params.id, req.body));
 }
 
+export async function deleteInspection(req: Request, res: Response) {
+  await service.deleteInspection(req.user!, req.params.id);
+  res.status(204).send();
+}
+
 export async function submitInspection(req: Request, res: Response) {
   res.status(200).json(await service.submitInspection(req.user!, req.params.id, req.body));
 }
@@ -39,4 +44,11 @@ export async function requestPhotoUploadUrl(req: Request, res: Response) {
 
 export async function addPhoto(req: Request, res: Response) {
   res.status(201).json(await service.addPhoto(req.user!, req.params.id, req.body));
+}
+
+export async function downloadInspectionPdf(req: Request, res: Response) {
+  const { inspection, pdf } = await service.getInspectionPdfBuffer(req.params.id);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${inspection.inspectionNo}.pdf"`);
+  res.send(pdf);
 }

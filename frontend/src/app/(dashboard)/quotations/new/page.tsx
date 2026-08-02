@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
@@ -37,6 +37,7 @@ const currency = (n: number) => n.toLocaleString(undefined, { style: 'currency',
 
 export default function NewQuotationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -82,6 +83,12 @@ export default function NewQuotationPage() {
     setSiteInspectionId(id);
     prefillMutation.mutate(id);
   }
+
+  React.useEffect(() => {
+    const preselect = searchParams.get('siteInspectionId');
+    if (preselect && !siteInspectionId) handleSelectInspection(preselect);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function addItem(category: QuotationItemCategory) {
     setLineItems([...lineItems, { category, itemName: '', description: '', quantity: 1, unit: '', unitPrice: 0 }]);

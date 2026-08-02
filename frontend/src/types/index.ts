@@ -282,7 +282,8 @@ export type ServiceRequestStatus =
   | 'REJECTED'
   | 'CANCELLED'
   | 'CLOSED';
-export type InspectionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type InspectionStatus = 'PENDING' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type AttachmentType = 'PHOTO' | 'VIDEO' | 'DRAWING' | 'DOCUMENT';
 
 export interface ServiceRequestAttachment {
   id: string;
@@ -298,12 +299,15 @@ export interface InspectionMeasurement {
   width?: string | number | null;
   height?: string | number | null;
   unit: string;
+  quantity?: number | null;
   area?: string | number | null;
+  notes?: string | null;
 }
 
 export interface InspectionPhoto {
   id: string;
   fileUrl: string;
+  fileType: AttachmentType;
   caption?: string | null;
   createdAt: string;
 }
@@ -311,7 +315,9 @@ export interface InspectionPhoto {
 export interface MaterialEstimateRow {
   material: string;
   quantity: string;
-  estimatedCost: number;
+  unit?: string;
+  estimatedCost?: number;
+  remarks?: string;
 }
 
 export interface LaborEstimateRow {
@@ -322,16 +328,24 @@ export interface LaborEstimateRow {
 
 export interface SiteInspection {
   id: string;
+  inspectionNo: string;
   serviceRequestId: string;
   inspectorId: string;
   inspector?: { id: string; fullName: string };
   scheduledAt: string;
   status: InspectionStatus;
   siteAddress?: string | null;
+  landmark?: string | null;
+  city?: string | null;
+  region?: string | null;
   latitude?: string | number | null;
   longitude?: string | number | null;
+  inspectionPurpose?: string | null;
+  customerRequirements?: string | null;
+  existingSiteCondition?: string | null;
   accessNotes?: string | null;
   technicalNotes?: string | null;
+  internalNotes?: string | null;
   materialEstimate?: MaterialEstimateRow[] | null;
   laborEstimate?: LaborEstimateRow[] | null;
   materialCost?: string | number | null;
@@ -339,6 +353,13 @@ export interface SiteInspection {
   transportationCost?: string | number | null;
   estimatedCost?: string | number | null;
   estimatedDuration?: string | null;
+  estimatedWorkers?: number | null;
+  estimatedWorkingDays?: number | null;
+  specialSkillsRequired?: string | null;
+  vehicleRequired?: string | null;
+  transportDistance?: string | number | null;
+  accessibility?: string | null;
+  transportationNotes?: string | null;
   cancelReason?: string | null;
   submittedAt?: string | null;
   measurements?: InspectionMeasurement[];
@@ -370,6 +391,9 @@ export interface ServiceRequest {
   title?: string | null;
   description: string;
   projectLocation?: string | null;
+  projectType?: string | null;
+  expectedStartDate?: string | null;
+  expectedCompletionDate?: string | null;
   siteAddressId?: string | null;
   preferredContactTime?: string | null;
   preferredDate?: string | null;

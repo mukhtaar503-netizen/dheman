@@ -23,6 +23,9 @@ interface CreateServiceRequestInput {
   title?: string;
   description: string;
   projectLocation?: string;
+  projectType?: string;
+  expectedStartDate?: Date;
+  expectedCompletionDate?: Date;
   siteAddressId?: string;
   preferredContactTime?: Date;
   preferredDate?: Date;
@@ -42,6 +45,9 @@ export async function createServiceRequest(actor: AuthUser | undefined, input: C
       title: input.title,
       description: input.description,
       projectLocation: input.projectLocation,
+      projectType: input.projectType,
+      expectedStartDate: input.expectedStartDate,
+      expectedCompletionDate: input.expectedCompletionDate,
       siteAddressId: input.siteAddressId,
       preferredContactTime: input.preferredContactTime,
       preferredDate: input.preferredDate,
@@ -164,6 +170,9 @@ interface UpdateServiceRequestInput {
   title?: string | null;
   description?: string;
   projectLocation?: string | null;
+  projectType?: string | null;
+  expectedStartDate?: Date | null;
+  expectedCompletionDate?: Date | null;
   siteAddressId?: string | null;
   preferredContactTime?: Date | null;
   preferredDate?: Date | null;

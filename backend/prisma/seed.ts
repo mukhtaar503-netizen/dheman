@@ -468,6 +468,7 @@ async function main() {
     where: { serviceRequestId: demoServiceRequest.id },
     update: {},
     create: {
+      inspectionNo: 'INS-DEMO-0001',
       serviceRequestId: demoServiceRequest.id,
       inspectorId: demoInspector.id,
       // Backdated relative to each other (not "now") so the Status Timeline reads

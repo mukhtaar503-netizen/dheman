@@ -8,7 +8,7 @@ import { prisma } from '@/lib/prisma';
  */
 export async function generateReferenceNumber(
   prefix: string,
-  model: 'serviceRequest' | 'quotation' | 'project' | 'invoice',
+  model: 'serviceRequest' | 'quotation' | 'project' | 'invoice' | 'siteInspection',
 ): Promise<string> {
   const year = new Date().getFullYear();
   const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);

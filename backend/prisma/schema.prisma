@@ -106,10 +106,18 @@ enum ServiceRequestPriority {
 }
 
 enum InspectionStatus {
+  PENDING
   SCHEDULED
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+enum AttachmentType {
+  PHOTO
+  VIDEO
+  DRAWING
+  DOCUMENT
 }
 
 enum QuotationStatus {
@@ -582,23 +590,26 @@ model Service {
 }
 
 model ServiceRequest {
-  id                   String                 @id @default(uuid())
-  referenceNo          String                 @unique
-  customerId           String
-  serviceCategoryId    String
-  serviceId            String?
-  title                String?
-  description          String
-  projectLocation      String?
-  siteAddressId        String?
-  preferredContactTime DateTime?
-  preferredDate        DateTime?
-  priority             ServiceRequestPriority @default(MEDIUM)
-  status               ServiceRequestStatus   @default(NEW)
-  ownerId              String?
-  createdById          String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  id                     String                 @id @default(uuid())
+  referenceNo            String                 @unique
+  customerId             String
+  serviceCategoryId      String
+  serviceId              String?
+  title                  String?
+  description            String
+  projectLocation        String?
+  projectType            String?
+  expectedStartDate      DateTime?
+  expectedCompletionDate DateTime?
+  siteAddressId          String?
+  preferredContactTime   DateTime?
+  preferredDate          DateTime?
+  priority               ServiceRequestPriority @default(MEDIUM)
+  status                 ServiceRequestStatus   @default(NEW)
+  ownerId                String?
+  createdById            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   customer        Customer                   @relation(fields: [customerId], references: [id])
   serviceCategory ServiceCategory            @relation(fields: [serviceCategoryId], references: [id])
@@ -627,27 +638,45 @@ model ServiceRequestAttachment {
 }
 
 model SiteInspection {
-  id                 String           @id @default(uuid())
-  serviceRequestId   String           @unique
-  inspectorId        String
-  scheduledAt        DateTime
-  status             InspectionStatus @default(SCHEDULED)
-  siteAddress        String?
-  latitude           Decimal?         @db.Decimal(9, 6)
-  longitude          Decimal?         @db.Decimal(9, 6)
-  accessNotes        String?
-  technicalNotes     String?
-  materialEstimate   Json?
-  laborEstimate      Json?
-  materialCost       Decimal?         @db.Decimal(12, 2)
-  laborCost          Decimal?         @db.Decimal(12, 2)
-  transportationCost Decimal?         @db.Decimal(12, 2)
-  estimatedCost      Decimal?         @db.Decimal(12, 2)
-  estimatedDuration  String?
-  cancelReason       String?
-  submittedAt        DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  id                    String           @id @default(uuid())
+  inspectionNo          String           @unique
+  serviceRequestId      String           @unique
+  inspectorId           String
+  scheduledAt           DateTime
+  status                InspectionStatus @default(PENDING)
+  siteAddress           String?
+  landmark              String?
+  city                  String?
+  region                String?
+  latitude              Decimal?         @db.Decimal(9, 6)
+  longitude             Decimal?         @db.Decimal(9, 6)
+  inspectionPurpose     String?
+  customerRequirements  String?
+  existingSiteCondition String?
+  accessNotes           String?
+  technicalNotes        String?
+  internalNotes         String?
+  materialEstimate      Json?
+  laborEstimate         Json?
+  materialCost          Decimal?         @db.Decimal(12, 2)
+  laborCost             Decimal?         @db.Decimal(12, 2)
+  transportationCost    Decimal?         @db.Decimal(12, 2)
+  estimatedCost         Decimal?         @db.Decimal(12, 2)
+  estimatedDuration     String?
+  // Labor assessment — a rough on-site read of crew size/duration/skills, distinct from
+  // laborEstimate's per-task cost breakdown used for quotation pricing.
+  estimatedWorkers      Int?
+  estimatedWorkingDays  Int?
+  specialSkillsRequired String?
+  // Transportation assessment — logistics notes, distinct from transportationCost.
+  vehicleRequired       String?
+  transportDistance     Decimal?         @db.Decimal(8, 2)
+  accessibility         String?
+  transportationNotes   String?
+  cancelReason          String?
+  submittedAt           DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
 
   serviceRequest ServiceRequest            @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
   inspector      User                      @relation("InspectorUser", fields: [inspectorId], references: [id])
@@ -677,17 +706,22 @@ model InspectionMeasurement {
   width        Decimal? @db.Decimal(10, 2)
   height       Decimal? @db.Decimal(10, 2)
   unit         String   @default("ft")
+  quantity     Int?     @default(1)
   area         Decimal? @db.Decimal(10, 2)
+  notes        String?
 
   inspection SiteInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 }
 
+// Also covers videos/drawings/documents (see fileType) — kept as one model to avoid a
+// near-duplicate table, since every attachment shares the same signed-upload flow.
 model InspectionPhoto {
-  id           String   @id @default(uuid())
+  id           String         @id @default(uuid())
   inspectionId String
   fileUrl      String
+  fileType     AttachmentType @default(PHOTO)
   caption      String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime       @default(now())
 
   inspection SiteInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 }
