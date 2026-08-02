@@ -9,7 +9,12 @@ async function main() {
     where: { id: (await prisma.companySettings.findFirst())?.id ?? '00000000-0000-0000-0000-000000000000' },
     update: {},
     create: {
-      name: 'Demo Installation & Maintenance Co.',
+      name: 'Dheeman Decoration and Furniture Solution',
+      tagline: 'Professional Decoration & Installation Services',
+      address: 'Sheikh Zayed Road, Al Quoz Industrial Area, Dubai, UAE',
+      phone: '+971 4 250 1234',
+      email: 'info@dheeman.ae',
+      website: 'www.dheeman.ae',
       currency: 'USD',
       taxRatePercent: 5,
       quotationValidityDays: 15,

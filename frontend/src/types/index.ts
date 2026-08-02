@@ -474,6 +474,7 @@ export interface Quotation {
   customer?: Customer;
   serviceRequest?: ServiceRequest;
   siteInspection?: SiteInspection | null;
+  createdBy?: { id: string; fullName: string } | null;
   lineItems?: QuotationLineItem[];
   auditLogs?: QuotationAuditLogEntry[];
   approvals?: QuotationApproval[];
@@ -503,4 +504,19 @@ export interface QuotationPrefill {
     unit: string;
     unitPrice: number;
   }[];
+}
+
+export interface CompanySettings {
+  id: string;
+  name: string;
+  tagline?: string | null;
+  logoUrl?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  taxRegistrationNo?: string | null;
+  taxRatePercent: number | string;
+  currency: string;
+  quotationValidityDays: number;
 }

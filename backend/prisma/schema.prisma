@@ -379,10 +379,12 @@ model PasswordResetToken {
 model CompanySettings {
   id                        String   @id @default(uuid())
   name                      String
+  tagline                   String?
   logoUrl                   String?
   address                   String?
   phone                     String?
   email                     String?
+  website                   String?
   taxRegistrationNo         String?
   taxRatePercent            Decimal  @default(0) @db.Decimal(5, 2)
   currency                  String   @default("USD")

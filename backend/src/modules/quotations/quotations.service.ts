@@ -219,6 +219,7 @@ export async function getQuotationById(id: string) {
       customer: true,
       serviceRequest: { include: { serviceCategory: true, service: true } },
       siteInspection: true,
+      createdBy: { select: { id: true, fullName: true } },
       auditLogs: { orderBy: { createdAt: 'desc' } },
       approvals: { orderBy: { createdAt: 'desc' } },
     },
@@ -549,7 +550,13 @@ export async function expireOverdueQuotations() {
 export async function getQuotationPdfBuffer(id: string) {
   const quotation = await prisma.quotation.findUnique({
     where: { id },
-    include: { customer: true, serviceRequest: { include: { serviceCategory: true, service: true } }, siteInspection: true, lineItems: true },
+    include: {
+      customer: true,
+      serviceRequest: { include: { serviceCategory: true, service: true } },
+      siteInspection: true,
+      lineItems: true,
+      createdBy: { select: { id: true, fullName: true } },
+    },
   });
   if (!quotation) throw HttpError.notFound('Quotation not found');
   return { quotation, pdf: await generateQuotationPdf(quotation) };

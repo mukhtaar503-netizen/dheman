@@ -25,6 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { QuotationHeader } from '@/components/quotation/quotation-header';
+import { QuotationFooter } from '@/components/quotation/quotation-footer';
 import type { Quotation, QuotationStatus } from '@/types';
 
 const STATUS_LABEL: Record<QuotationStatus, string> = {
@@ -50,15 +52,6 @@ const STATUS_VARIANT: Record<QuotationStatus, 'secondary' | 'default' | 'success
 const CATEGORY_LABEL: Record<string, string> = { MATERIAL: 'Material', LABOR: 'Labor', TRANSPORTATION: 'Transportation' };
 
 const currency = (n: number | string) => Number(n).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
-
-function Field({ label, value }: { label: string; value?: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm">{value ?? '—'}</p>
-    </div>
-  );
-}
 
 export default function QuotationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -196,45 +189,70 @@ export default function QuotationDetailPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer &amp; Project Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {!isCustomer && <Field label="Customer" value={quotation.customer?.fullName} />}
-          {!isCustomer && <Field label="Phone" value={quotation.customer?.phone} />}
-          <Field label="Service" value={quotation.serviceRequest?.service?.serviceName ?? quotation.serviceRequest?.serviceCategory?.name} />
-          <Field label="Project Location" value={quotation.serviceRequest?.projectLocation} />
-          <Field label="Version" value={quotation.version} />
-          <Field label="Valid Until" value={quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : undefined} />
-          <Field label="Created" value={new Date(quotation.createdAt).toLocaleDateString()} />
-          {quotation.emailSentAt && <Field label="Emailed" value={`${new Date(quotation.emailSentAt).toLocaleString()} (${quotation.emailStatus})`} />}
-        </CardContent>
-      </Card>
+      <QuotationHeader />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Cost Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="rounded-lg border border-[#e5e7eb] bg-white p-6 text-[#0F172A]">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold">Quotation Details</p>
+            <p>Quotation No: {quotation.quotationNo}</p>
+            <p>Date: {new Date(quotation.createdAt).toLocaleDateString()}</p>
+            <p>Valid Until: {quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : '—'}</p>
+            <p>Status: {STATUS_LABEL[quotation.status]}</p>
+            {quotation.createdBy && <p>Sales Representative: {quotation.createdBy.fullName}</p>}
+          </div>
+          {!isCustomer && (
+            <div className="space-y-1 text-sm sm:text-right">
+              <p className="font-semibold">Customer</p>
+              <p>{quotation.customer?.companyName || quotation.customer?.fullName}</p>
+              {quotation.customer?.companyName && <p>{quotation.customer.fullName}</p>}
+              {quotation.customer?.email && <p>{quotation.customer.email}</p>}
+              <p>{quotation.customer?.phone}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 space-y-1 text-sm">
+          <p className="font-semibold">Project Information</p>
+          {quotation.title && <p>Project Name: {quotation.title}</p>}
+          <p>Service Type: {quotation.serviceRequest?.service?.serviceName ?? quotation.serviceRequest?.serviceCategory?.name}</p>
+          {quotation.serviceRequest?.projectLocation && <p>Project Location: {quotation.serviceRequest.projectLocation}</p>}
+          {quotation.siteInspection && (
+            <p>
+              Site Inspection Reference: {quotation.siteInspection.id.slice(0, 8).toUpperCase()} (
+              {new Date(quotation.siteInspection.scheduledAt).toLocaleDateString()})
+            </p>
+          )}
+          {quotation.emailSentAt && (
+            <p className="text-[#555555]">
+              Emailed: {new Date(quotation.emailSentAt).toLocaleString()} ({quotation.emailStatus})
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-[#e5e7eb] bg-white p-6 text-[#0F172A]">
+        <p className="mb-4 font-semibold">Pricing</p>
+        <div className="space-y-4">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Unit Price</TableHead>
-                <TableHead className="text-right">Total</TableHead>
+              <TableRow className="border-[#e5e7eb] hover:bg-transparent">
+                <TableHead className="text-[#0F172A]">Description</TableHead>
+                <TableHead className="text-[#0F172A]">Qty</TableHead>
+                <TableHead className="text-[#0F172A]">Unit</TableHead>
+                <TableHead className="text-[#0F172A]">Unit Price</TableHead>
+                <TableHead className="text-right text-[#0F172A]">Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {quotation.lineItems?.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.itemName || item.description}</TableCell>
-                  <TableCell>{CATEGORY_LABEL[item.category] ?? item.category}</TableCell>
+                <TableRow key={item.id} className="border-[#e5e7eb]">
                   <TableCell>
-                    {item.quantity} {item.unit}
+                    {item.itemName || item.description}
+                    <p className="text-xs text-[#555555]">{CATEGORY_LABEL[item.category] ?? item.category}</p>
                   </TableCell>
+                  <TableCell>{item.quantity}</TableCell>
+                  <TableCell>{item.unit}</TableCell>
                   <TableCell>{currency(item.unitPrice)}</TableCell>
                   <TableCell className="text-right">{currency(item.subtotal)}</TableCell>
                 </TableRow>
@@ -244,49 +262,40 @@ export default function QuotationDetailPage() {
 
           <div className="ml-auto max-w-xs space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Material Cost</span>
+              <span className="text-[#555555]">Material Cost</span>
               <span>{currency(quotation.materialCost)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Labor Cost</span>
+              <span className="text-[#555555]">Labor Cost</span>
               <span>{currency(quotation.laborCost)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Transportation Cost</span>
+              <span className="text-[#555555]">Transportation Cost</span>
               <span>{currency(quotation.transportationCost)}</span>
             </div>
-            <div className="flex justify-between border-t border-border pt-1 font-medium">
+            <div className="flex justify-between border-t border-[#e5e7eb] pt-1 font-medium">
               <span>Subtotal</span>
               <span>{currency(quotation.subtotal)}</span>
             </div>
             {Number(quotation.discountAmount) > 0 && (
-              <div className="flex justify-between text-destructive">
+              <div className="flex justify-between text-red-600">
                 <span>Discount {quotation.discountType === 'PERCENTAGE' ? `(${quotation.discountValue}%)` : ''}</span>
                 <span>-{currency(quotation.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">VAT ({quotation.taxRatePercent}%)</span>
+              <span className="text-[#555555]">VAT ({quotation.taxRatePercent}%)</span>
               <span>{currency(quotation.taxAmount)}</span>
             </div>
-            <div className="flex justify-between border-t border-border pt-1 text-base font-semibold">
+            <div className="flex justify-between border-t-2 border-[#0F172A] pt-1 text-base font-bold text-[#F97316]">
               <span>Grand Total</span>
               <span>{currency(quotation.total)}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {quotation.termsAndConditions && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Terms &amp; Conditions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-line text-sm text-muted-foreground">{quotation.termsAndConditions}</p>
-          </CardContent>
-        </Card>
-      )}
+      <QuotationFooter termsAndConditions={quotation.termsAndConditions} />
 
       <Card>
         <CardHeader>

@@ -3,10 +3,12 @@ import { z } from 'zod';
 export const updateSettingsSchema = z.object({
   body: z.object({
     name: z.string().min(1).optional(),
+    tagline: z.string().optional(),
     logoUrl: z.string().url().optional(),
     address: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional(),
+    website: z.string().optional(),
     taxRegistrationNo: z.string().optional(),
     taxRatePercent: z.number().min(0).max(100).optional(),
     currency: z.string().length(3).optional(),
