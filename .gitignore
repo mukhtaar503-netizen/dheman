@@ -4,6 +4,7 @@ build/
 .next/
 .env
 .env.local
+.env.test
 *.log
 .DS_Store
 coverage/
