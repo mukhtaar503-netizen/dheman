@@ -51,6 +51,10 @@ export default function SiteInspectionDetailPage() {
   const [measurements, setMeasurements] = React.useState<Partial<InspectionMeasurement>[]>([]);
   const [materials, setMaterials] = React.useState<MaterialEstimateRow[]>([]);
   const [labor, setLabor] = React.useState<LaborEstimateRow[]>([]);
+  const [siteAddress, setSiteAddress] = React.useState('');
+  const [latitude, setLatitude] = React.useState('');
+  const [longitude, setLongitude] = React.useState('');
+  const [transportationCost, setTransportationCost] = React.useState('');
   const [photoFile, setPhotoFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
 
@@ -62,6 +66,10 @@ export default function SiteInspectionDetailPage() {
     setMeasurements(inspection.measurements ?? []);
     setMaterials(inspection.materialEstimate ?? []);
     setLabor(inspection.laborEstimate ?? []);
+    setSiteAddress(inspection.siteAddress ?? '');
+    setLatitude(inspection.latitude != null ? String(inspection.latitude) : '');
+    setLongitude(inspection.longitude != null ? String(inspection.longitude) : '');
+    setTransportationCost(inspection.transportationCost != null ? String(inspection.transportationCost) : '');
   }, [inspection]);
 
   const isLocked = inspection?.status === 'COMPLETED' || inspection?.status === 'CANCELLED';
@@ -76,6 +84,9 @@ export default function SiteInspectionDetailPage() {
   function buildPayload() {
     return {
       technicalNotes: technicalNotes || undefined,
+      siteAddress: siteAddress || undefined,
+      latitude: latitude ? Number(latitude) : undefined,
+      longitude: longitude ? Number(longitude) : undefined,
       measurements: measurements
         .filter((m) => m.label)
         .map((m) => ({
@@ -88,6 +99,7 @@ export default function SiteInspectionDetailPage() {
         })),
       materialEstimate: materials.filter((m) => m.material),
       laborEstimate: labor.filter((l) => l.task),
+      transportationCost: transportationCost ? Number(transportationCost) : undefined,
       estimatedCost: estimatedCost ? Number(estimatedCost) : undefined,
       estimatedDuration: estimatedDuration || undefined,
     };
@@ -156,9 +168,15 @@ export default function SiteInspectionDetailPage() {
         </div>
         {!isLocked && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-              {saveMutation.isPending ? 'Saving…' : 'Save Details'}
-            </Button>
+            {inspection.status === 'SCHEDULED' ? (
+              <Button variant="outline" size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+                {saveMutation.isPending ? 'Starting…' : 'Start Inspection'}
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+                {saveMutation.isPending ? 'Saving…' : 'Save Details'}
+              </Button>
+            )}
             <Button size="sm" disabled={completeMutation.isPending} onClick={() => completeMutation.mutate()}>
               {completeMutation.isPending ? 'Completing…' : 'Complete Inspection'}
             </Button>
@@ -175,6 +193,26 @@ export default function SiteInspectionDetailPage() {
           <Field label="Inspector" value={inspection.inspector?.fullName} />
           <Field label="Scheduled" value={new Date(inspection.scheduledAt).toLocaleString()} />
           {inspection.submittedAt && <Field label="Completed" value={new Date(inspection.submittedAt).toLocaleString()} />}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Location</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1 sm:col-span-3">
+            <Label htmlFor="siteAddress">Site address</Label>
+            <Input id="siteAddress" disabled={isLocked} value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="e.g. Villa 12, Al Nahda" />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="latitude">Latitude</Label>
+            <Input id="latitude" type="number" disabled={isLocked} value={latitude} onChange={(e) => setLatitude(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="longitude">Longitude</Label>
+            <Input id="longitude" type="number" disabled={isLocked} value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+          </div>
         </CardContent>
       </Card>
 
@@ -334,16 +372,27 @@ export default function SiteInspectionDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Overall Estimate</CardTitle>
+          <CardTitle>Cost Estimation</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Estimated cost</Label>
-            <Input type="number" disabled={isLocked} value={estimatedCost} onChange={(e) => setEstimatedCost(e.target.value)} />
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Field label="Material cost" value={inspection.materialCost != null ? `$${Number(inspection.materialCost).toFixed(2)}` : '—'} />
+            <Field label="Labor cost" value={inspection.laborCost != null ? `$${Number(inspection.laborCost).toFixed(2)}` : '—'} />
+            <div className="space-y-1">
+              <Label>Transportation cost</Label>
+              <Input type="number" disabled={isLocked} value={transportationCost} onChange={(e) => setTransportationCost(e.target.value)} />
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label>Estimated duration</Label>
-            <Input placeholder="e.g. 2 days" disabled={isLocked} value={estimatedDuration} onChange={(e) => setEstimatedDuration(e.target.value)} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>Estimated total cost</Label>
+              <Input type="number" disabled={isLocked} value={estimatedCost} onChange={(e) => setEstimatedCost(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Auto-calculated from material + labor + transportation unless overridden.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Estimated duration</Label>
+              <Input placeholder="e.g. 2 days" disabled={isLocked} value={estimatedDuration} onChange={(e) => setEstimatedDuration(e.target.value)} />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -372,6 +421,44 @@ export default function SiteInspectionDetailPage() {
               </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ol className="space-y-3">
+            <li className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary" /> Scheduled
+              </span>
+              <span className="text-muted-foreground">{new Date(inspection.createdAt).toLocaleString()}</span>
+            </li>
+            <li className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? 'bg-primary' : 'bg-muted'}`} /> In Progress
+              </span>
+              <span className="text-muted-foreground">
+                {inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? new Date(inspection.updatedAt).toLocaleString() : '—'}
+              </span>
+            </li>
+            <li className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${inspection.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-muted'}`} /> Completed
+              </span>
+              <span className="text-muted-foreground">{inspection.submittedAt ? new Date(inspection.submittedAt).toLocaleString() : '—'}</span>
+            </li>
+            {inspection.status === 'CANCELLED' && (
+              <li className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-destructive" /> Cancelled
+                </span>
+                <span className="text-muted-foreground">{new Date(inspection.updatedAt).toLocaleString()}</span>
+              </li>
+            )}
+          </ol>
         </CardContent>
       </Card>
     </div>

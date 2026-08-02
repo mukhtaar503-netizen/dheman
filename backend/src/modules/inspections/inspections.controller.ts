@@ -13,6 +13,10 @@ export async function listMyInspections(req: Request, res: Response) {
   res.status(200).json(await service.listInspections({ inspectorId: req.user!.id }));
 }
 
+export async function listCompletedInspections(_req: Request, res: Response) {
+  res.status(200).json(await service.listCompletedInspections());
+}
+
 export async function getInspection(req: Request, res: Response) {
   res.status(200).json(await service.getInspectionById(req.params.id));
 }

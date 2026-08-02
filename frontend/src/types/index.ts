@@ -327,10 +327,16 @@ export interface SiteInspection {
   inspector?: { id: string; fullName: string };
   scheduledAt: string;
   status: InspectionStatus;
+  siteAddress?: string | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
   accessNotes?: string | null;
   technicalNotes?: string | null;
   materialEstimate?: MaterialEstimateRow[] | null;
   laborEstimate?: LaborEstimateRow[] | null;
+  materialCost?: string | number | null;
+  laborCost?: string | number | null;
+  transportationCost?: string | number | null;
   estimatedCost?: string | number | null;
   estimatedDuration?: string | null;
   cancelReason?: string | null;
@@ -339,6 +345,20 @@ export interface SiteInspection {
   photos?: InspectionPhoto[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CompletedInspectionOption {
+  id: string;
+  serviceRequestId: string;
+  customer: { id: string; name: string };
+  service: { name: string };
+  inspectionDate: string;
+  completedAt?: string | null;
+  materialCost: number | null;
+  laborCost: number | null;
+  transportationCost: number | null;
+  estimatedCost: number | null;
+  estimatedDuration: string | null;
 }
 
 export interface ServiceRequest {

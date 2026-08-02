@@ -3,8 +3,10 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,7 +23,13 @@ const STATUS_VARIANT: Record<InspectionStatus, 'secondary' | 'default' | 'succes
 };
 
 interface InspectionRow extends SiteInspection {
-  serviceRequest?: { referenceNo: string; title?: string | null; customer?: { fullName: string } };
+  serviceRequest?: {
+    referenceNo: string;
+    title?: string | null;
+    customer?: { fullName: string };
+    serviceCategory?: { name: string };
+    service?: { serviceName: string } | null;
+  };
 }
 
 export default function SiteInspectionsPage() {
@@ -45,7 +53,14 @@ export default function SiteInspectionsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Site Inspections</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Site Inspections</h1>
+        {!isInspector && (
+          <Button size="sm" onClick={() => router.push('/site-inspections/new')}>
+            <Plus className="mr-1 h-4 w-4" /> New Inspection
+          </Button>
+        )}
+      </div>
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -72,8 +87,8 @@ export default function SiteInspectionsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Reference</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Service</TableHead>
                   <TableHead>Inspector</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -83,8 +98,8 @@ export default function SiteInspectionsPage() {
               <TableBody>
                 {items.map((row) => (
                   <TableRow key={row.id} className="cursor-pointer" onClick={() => router.push(`/site-inspections/${row.id}`)}>
-                    <TableCell className="font-medium">{row.serviceRequest?.referenceNo ?? '—'}</TableCell>
-                    <TableCell>{row.serviceRequest?.customer?.fullName ?? '—'}</TableCell>
+                    <TableCell className="font-medium">{row.serviceRequest?.customer?.fullName ?? '—'}</TableCell>
+                    <TableCell>{row.serviceRequest?.service?.serviceName ?? row.serviceRequest?.serviceCategory?.name ?? '—'}</TableCell>
                     <TableCell>{row.inspector?.fullName ?? '—'}</TableCell>
                     <TableCell>{new Date(row.scheduledAt).toLocaleString()}</TableCell>
                     <TableCell>

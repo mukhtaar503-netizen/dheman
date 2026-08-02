@@ -9,7 +9,46 @@ import { createSignedUploadUrl } from '@/lib/storage';
 type MaterialEstimateRow = { material: string; quantity: string; estimatedCost: number };
 type LaborEstimateRow = { task: string; estimatedHours: number; cost: number };
 
-export async function scheduleInspection(actor: AuthUser, input: { serviceRequestId: string; inspectorId: string; scheduledAt: Date }) {
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Cost Summary auto-calculation: materialCost/laborCost roll up from the JSON estimate
+ * arrays whenever they're (re)submitted, falling back to whatever was already stored so
+ * an incremental save that only touches labor doesn't wipe out a previously-saved material
+ * figure. estimatedCost is auto-derived from the three components unless the caller passes
+ * an explicit override.
+ */
+function computeCostSummary(
+  before: { materialCost: Prisma.Decimal | null; laborCost: Prisma.Decimal | null; transportationCost: Prisma.Decimal | null },
+  input: { materialEstimate?: MaterialEstimateRow[]; laborEstimate?: LaborEstimateRow[]; transportationCost?: number; estimatedCost?: number },
+) {
+  const materialCost = input.materialEstimate
+    ? round2(input.materialEstimate.reduce((sum, m) => sum + m.estimatedCost, 0))
+    : before.materialCost != null
+      ? Number(before.materialCost)
+      : undefined;
+  const laborCost = input.laborEstimate
+    ? round2(input.laborEstimate.reduce((sum, l) => sum + l.cost, 0))
+    : before.laborCost != null
+      ? Number(before.laborCost)
+      : undefined;
+  const transportationCost = input.transportationCost ?? (before.transportationCost != null ? Number(before.transportationCost) : undefined);
+
+  const estimatedCost =
+    input.estimatedCost ??
+    (materialCost != null || laborCost != null || transportationCost != null
+      ? round2((materialCost ?? 0) + (laborCost ?? 0) + (transportationCost ?? 0))
+      : undefined);
+
+  return { materialCost, laborCost, transportationCost, estimatedCost };
+}
+
+export async function scheduleInspection(
+  actor: AuthUser,
+  input: { serviceRequestId: string; inspectorId: string; scheduledAt: Date; siteAddress?: string; latitude?: number; longitude?: number },
+) {
   const serviceRequest = await prisma.serviceRequest.findUnique({ where: { id: input.serviceRequestId } });
   if (!serviceRequest) throw HttpError.notFound('Service request not found');
 
@@ -19,6 +58,9 @@ export async function scheduleInspection(actor: AuthUser, input: { serviceReques
         serviceRequestId: input.serviceRequestId,
         inspectorId: input.inspectorId,
         scheduledAt: input.scheduledAt,
+        siteAddress: input.siteAddress,
+        latitude: input.latitude,
+        longitude: input.longitude,
       },
     });
     await tx.serviceRequest.update({
@@ -45,7 +87,13 @@ export async function scheduleInspection(actor: AuthUser, input: { serviceReques
 export async function getInspectionById(id: string) {
   const inspection = await prisma.siteInspection.findUnique({
     where: { id },
-    include: { serviceRequest: { include: { customer: true, serviceCategory: true } }, checklistItems: true, measurements: true, photos: true, inspector: { select: { id: true, fullName: true } } },
+    include: {
+      serviceRequest: { include: { customer: true, serviceCategory: true, service: true } },
+      checklistItems: true,
+      measurements: true,
+      photos: true,
+      inspector: { select: { id: true, fullName: true } },
+    },
   });
   if (!inspection) throw HttpError.notFound('Site inspection not found');
   return inspection;
@@ -54,9 +102,39 @@ export async function getInspectionById(id: string) {
 export async function listInspections(filters: { inspectorId?: string; status?: InspectionStatus }) {
   return prisma.siteInspection.findMany({
     where: { ...(filters.inspectorId ? { inspectorId: filters.inspectorId } : {}), ...(filters.status ? { status: filters.status } : {}) },
-    include: { serviceRequest: { include: { customer: true } } },
+    include: {
+      serviceRequest: { include: { customer: true, serviceCategory: true, service: true } },
+      inspector: { select: { id: true, fullName: true } },
+    },
     orderBy: { scheduledAt: 'asc' },
   });
+}
+
+/**
+ * GET /inspections/completed — the exact set a Quotation can be created from. Returns a
+ * lean shape (customer/service names + estimates) purpose-built for the "select a
+ * completed inspection" dropdown on the Quotation create page.
+ */
+export async function listCompletedInspections() {
+  const inspections = await prisma.siteInspection.findMany({
+    where: { status: InspectionStatus.COMPLETED },
+    include: { serviceRequest: { include: { customer: true, serviceCategory: true, service: true } } },
+    orderBy: { submittedAt: 'desc' },
+  });
+
+  return inspections.map((i) => ({
+    id: i.id,
+    serviceRequestId: i.serviceRequestId,
+    customer: { id: i.serviceRequest.customer.id, name: i.serviceRequest.customer.fullName },
+    service: { name: i.serviceRequest.service?.serviceName ?? i.serviceRequest.serviceCategory.name },
+    inspectionDate: i.scheduledAt,
+    completedAt: i.submittedAt,
+    materialCost: i.materialCost != null ? Number(i.materialCost) : null,
+    laborCost: i.laborCost != null ? Number(i.laborCost) : null,
+    transportationCost: i.transportationCost != null ? Number(i.transportationCost) : null,
+    estimatedCost: i.estimatedCost != null ? Number(i.estimatedCost) : null,
+    estimatedDuration: i.estimatedDuration,
+  }));
 }
 
 export async function reschedule(actor: AuthUser, id: string, input: { scheduledAt?: Date; inspectorId?: string; cancelReason?: string }) {
@@ -81,9 +159,13 @@ export async function reschedule(actor: AuthUser, id: string, input: { scheduled
 interface InspectionDetailsInput {
   accessNotes?: string;
   technicalNotes?: string;
+  siteAddress?: string;
+  latitude?: number;
+  longitude?: number;
   measurements?: { label: string; length?: number; width?: number; height?: number; unit?: string; area?: number }[];
   materialEstimate?: MaterialEstimateRow[];
   laborEstimate?: LaborEstimateRow[];
+  transportationCost?: number;
   estimatedCost?: number;
   estimatedDuration?: string;
 }
@@ -100,6 +182,8 @@ export async function updateInspectionDetails(actor: AuthUser, id: string, input
     throw HttpError.badRequest('Only a Scheduled or In Progress inspection can be updated');
   }
 
+  const { materialCost, laborCost, transportationCost, estimatedCost } = computeCostSummary(before, input);
+
   const inspection = await prisma.$transaction(async (tx) => {
     const updated = await tx.siteInspection.update({
       where: { id },
@@ -107,9 +191,15 @@ export async function updateInspectionDetails(actor: AuthUser, id: string, input
         status: InspectionStatus.IN_PROGRESS,
         accessNotes: input.accessNotes,
         technicalNotes: input.technicalNotes,
+        siteAddress: input.siteAddress,
+        latitude: input.latitude,
+        longitude: input.longitude,
         materialEstimate: input.materialEstimate as Prisma.InputJsonValue | undefined,
         laborEstimate: input.laborEstimate as Prisma.InputJsonValue | undefined,
-        estimatedCost: input.estimatedCost,
+        materialCost,
+        laborCost,
+        transportationCost,
+        estimatedCost,
         estimatedDuration: input.estimatedDuration,
       },
     });
@@ -151,10 +241,14 @@ export async function submitInspection(
   input: {
     accessNotes?: string;
     technicalNotes?: string;
+    siteAddress?: string;
+    latitude?: number;
+    longitude?: number;
     checklistItems?: { key: string; label: string; value?: unknown }[];
     measurements?: { label: string; length?: number; width?: number; height?: number; unit?: string; area?: number }[];
     materialEstimate?: MaterialEstimateRow[];
     laborEstimate?: LaborEstimateRow[];
+    transportationCost?: number;
     estimatedCost?: number;
     estimatedDuration?: string;
     photos?: { fileUrl: string; caption?: string }[];
@@ -165,6 +259,8 @@ export async function submitInspection(
     throw HttpError.badRequest('Only a Scheduled or In Progress inspection can be completed');
   }
 
+  const { materialCost, laborCost, transportationCost, estimatedCost } = computeCostSummary(before, input);
+
   const inspection = await prisma.$transaction(async (tx) => {
     const updated = await tx.siteInspection.update({
       where: { id },
@@ -172,9 +268,15 @@ export async function submitInspection(
         status: InspectionStatus.COMPLETED,
         accessNotes: input.accessNotes,
         technicalNotes: input.technicalNotes,
+        siteAddress: input.siteAddress,
+        latitude: input.latitude,
+        longitude: input.longitude,
         materialEstimate: input.materialEstimate as Prisma.InputJsonValue | undefined,
         laborEstimate: input.laborEstimate as Prisma.InputJsonValue | undefined,
-        estimatedCost: input.estimatedCost,
+        materialCost,
+        laborCost,
+        transportationCost,
+        estimatedCost,
         estimatedDuration: input.estimatedDuration,
         submittedAt: new Date(),
       },

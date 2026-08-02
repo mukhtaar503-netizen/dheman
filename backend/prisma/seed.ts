@@ -396,6 +396,95 @@ async function main() {
   }
   console.log(`Seeded ${services.length} services across 5 categories.`);
 
+  // Demo data: a Customer with a completed Site Inspection, so the Quotation
+  // create page always has at least one real, ready-to-quote inspection to show
+  // rather than starting from a genuinely empty state on every fresh database.
+  let demoCustomer = await prisma.customer.findFirst({ where: { fullName: 'Ahmed Furniture' } });
+  if (!demoCustomer) {
+    demoCustomer = await prisma.customer.create({
+      data: {
+        customerCode: 'CUS-DEMO-0001',
+        fullName: 'Ahmed Furniture',
+        type: 'CORPORATE',
+        companyName: 'Ahmed Furniture Trading',
+        phone: '+971500000001',
+        email: 'ahmed.furniture@example.com',
+        status: 'ACTIVE',
+      },
+    });
+  }
+
+  const aluminumCategory = await prisma.serviceCategory.findUniqueOrThrow({ where: { code: 'ALUMINUM' } });
+  const aluminumService = await prisma.service.findFirst({ where: { category: ServiceCategoryGroup.ALUMINUM } });
+
+  let demoInspector = await prisma.user.findUnique({ where: { email: 'demo.inspector@sms.local' } });
+  if (!demoInspector) {
+    demoInspector = await prisma.user.create({
+      data: {
+        email: 'demo.inspector@sms.local',
+        fullName: 'Demo Site Inspector',
+        passwordHash: await bcrypt.hash('ChangeMe123!', 10),
+        role: Role.SITE_INSPECTOR,
+      },
+    });
+    const inspectorRoleId = roleRecords.get(Role.SITE_INSPECTOR);
+    if (inspectorRoleId) {
+      await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: demoInspector.id, roleId: inspectorRoleId } },
+        update: {},
+        create: { userId: demoInspector.id, roleId: inspectorRoleId },
+      });
+    }
+  }
+
+  let demoServiceRequest = await prisma.serviceRequest.findUnique({ where: { referenceNo: 'SR-DEMO-0001' } });
+  if (!demoServiceRequest) {
+    demoServiceRequest = await prisma.serviceRequest.create({
+      data: {
+        referenceNo: 'SR-DEMO-0001',
+        customerId: demoCustomer.id,
+        serviceCategoryId: aluminumCategory.id,
+        serviceId: aluminumService?.id,
+        title: 'Aluminum Installation — Showroom Fitout',
+        description: 'Aluminum framing and glass partition installation for a new showroom.',
+        projectLocation: 'Ahmed Furniture Showroom, Sheikh Zayed Road',
+        priority: 'MEDIUM',
+        status: 'INSPECTION_COMPLETED',
+      },
+    });
+  }
+
+  const demoMaterialEstimate = [
+    { material: 'Aluminum Profile', quantity: '30 meters', estimatedCost: 900 },
+  ];
+  const demoLaborEstimate = [{ task: 'Installation & Fitting', estimatedHours: 20, cost: 500 }];
+
+  await prisma.siteInspection.upsert({
+    where: { serviceRequestId: demoServiceRequest.id },
+    update: {},
+    create: {
+      serviceRequestId: demoServiceRequest.id,
+      inspectorId: demoInspector.id,
+      // Backdated relative to each other (not "now") so the Status Timeline reads
+      // Scheduled -> In Progress -> Completed in the correct chronological order.
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60_000),
+      scheduledAt: new Date(Date.now() - 3 * 24 * 60 * 60_000),
+      status: 'COMPLETED',
+      siteAddress: 'Ahmed Furniture Showroom, Sheikh Zayed Road, Dubai',
+      technicalNotes: 'Site is accessible; power available on-site. Ready for installation.',
+      materialEstimate: demoMaterialEstimate,
+      laborEstimate: demoLaborEstimate,
+      materialCost: 900,
+      laborCost: 500,
+      transportationCost: 100,
+      estimatedCost: 1500,
+      estimatedDuration: '5 days',
+      submittedAt: new Date(Date.now() - 1 * 24 * 60 * 60_000),
+      updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60_000),
+    },
+  });
+  console.log('Seeded demo data: Ahmed Furniture / SR-DEMO-0001 / completed Site Inspection ($1500 estimate).');
+
   console.log('Seed complete.');
 }
 

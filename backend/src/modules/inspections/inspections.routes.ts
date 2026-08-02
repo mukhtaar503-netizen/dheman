@@ -30,6 +30,19 @@ router.get('/me', requireRole(Role.SITE_INSPECTOR), asyncHandler(controller.list
 
 /**
  * @openapi
+ * /inspections/completed:
+ *   get:
+ *     summary: List completed Site Inspections available as a Quotation source (customer/service/estimates only)
+ *     tags: [Inspections]
+ */
+router.get(
+  '/completed',
+  requirePermission(PERMISSIONS.INSPECTIONS_MANAGE, PERMISSIONS.QUOTATIONS_MANAGE),
+  asyncHandler(controller.listCompletedInspections),
+);
+
+/**
+ * @openapi
  * /inspections/{id}/submit:
  *   post:
  *     summary: Site Inspector submits checklist, measurements, and photos (FR-INSP-02..06)

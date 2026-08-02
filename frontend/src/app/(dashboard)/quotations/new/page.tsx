@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { QuotationItemCategory, QuotationPrefill, SiteInspection } from '@/types';
+import type { CompletedInspectionOption, QuotationItemCategory, QuotationPrefill } from '@/types';
 
 interface DraftLineItem {
   category: QuotationItemCategory;
@@ -33,9 +33,7 @@ function round2(n: number) {
   return Math.round(n * 100) / 100;
 }
 
-interface InspectionRow extends SiteInspection {
-  serviceRequest?: { id: string; referenceNo: string; title?: string | null; customer?: { fullName: string } };
-}
+const currency = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 
 export default function NewQuotationPage() {
   const router = useRouter();
@@ -56,11 +54,10 @@ export default function NewQuotationPage() {
     'Payment due within the validity period stated above. Prices are subject to change after expiry.',
   );
 
-  const { data: inspections } = useQuery({
+  const { data: completedInspections } = useQuery({
     queryKey: ['completed-inspections-picker'],
-    queryFn: () => api.get<InspectionRow[]>('/inspections'),
+    queryFn: () => api.get<CompletedInspectionOption[]>('/inspections/completed'),
   });
-  const completedInspections = (inspections ?? []).filter((i) => i.status === 'COMPLETED');
 
   const { data: settings } = useQuery({ queryKey: ['company-settings'], queryFn: () => api.get<{ taxRatePercent: string | number }>('/settings') });
 
@@ -155,15 +152,16 @@ export default function NewQuotationPage() {
               <SelectValue placeholder="Select a Site Inspection to auto-load customer, service, and estimates" />
             </SelectTrigger>
             <SelectContent>
-              {completedInspections.map((i) => (
+              {(completedInspections ?? []).map((i) => (
                 <SelectItem key={i.id} value={i.id}>
-                  {i.serviceRequest?.referenceNo} — {i.serviceRequest?.customer?.fullName}
+                  {i.customer.name} — {i.service.name} — {new Date(i.inspectionDate).toLocaleDateString()}
+                  {i.estimatedCost != null ? ` — ${currency(i.estimatedCost)}` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {prefillMutation.isPending && <p className="text-xs text-muted-foreground">Loading inspection details…</p>}
-          {!completedInspections.length && (
+          {completedInspections && completedInspections.length === 0 && (
             <p className="text-xs text-muted-foreground">No completed inspections available yet.</p>
           )}
         </CardContent>

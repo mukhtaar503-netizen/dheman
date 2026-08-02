@@ -625,21 +625,27 @@ model ServiceRequestAttachment {
 }
 
 model SiteInspection {
-  id                String           @id @default(uuid())
-  serviceRequestId  String           @unique
-  inspectorId       String
-  scheduledAt       DateTime
-  status            InspectionStatus @default(SCHEDULED)
-  accessNotes       String?
-  technicalNotes    String?
-  materialEstimate  Json?
-  laborEstimate     Json?
-  estimatedCost     Decimal?         @db.Decimal(12, 2)
-  estimatedDuration String?
-  cancelReason      String?
-  submittedAt       DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id                 String           @id @default(uuid())
+  serviceRequestId   String           @unique
+  inspectorId        String
+  scheduledAt        DateTime
+  status             InspectionStatus @default(SCHEDULED)
+  siteAddress        String?
+  latitude           Decimal?         @db.Decimal(9, 6)
+  longitude          Decimal?         @db.Decimal(9, 6)
+  accessNotes        String?
+  technicalNotes     String?
+  materialEstimate   Json?
+  laborEstimate      Json?
+  materialCost       Decimal?         @db.Decimal(12, 2)
+  laborCost          Decimal?         @db.Decimal(12, 2)
+  transportationCost Decimal?         @db.Decimal(12, 2)
+  estimatedCost      Decimal?         @db.Decimal(12, 2)
+  estimatedDuration  String?
+  cancelReason       String?
+  submittedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   serviceRequest ServiceRequest            @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
   inspector      User                      @relation("InspectorUser", fields: [inspectorId], references: [id])
