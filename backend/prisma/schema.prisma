@@ -163,6 +163,20 @@ enum MilestoneStatus {
   DELAYED
 }
 
+// Responsibility a staff member holds on a Project (Staff Registration feature).
+enum StaffResponsibility {
+  SUPERVISOR
+  TECHNICIAN
+  INSTALLER
+  ELECTRICIAN
+  CARPENTER
+  PLUMBER
+  PAINTER
+  DRIVER
+  HELPER
+  OTHER
+}
+
 enum TaskStatus {
   TODO
   ASSIGNED
@@ -264,6 +278,8 @@ model User {
   passwordHash        String
   fullName            String
   phone               String?
+  employeeId          String?    @unique
+  department          String?
   role                Role
   status              UserStatus @default(ACTIVE)
   failedLoginAttempts Int        @default(0)
@@ -273,24 +289,26 @@ model User {
 
   refreshTokens             RefreshToken[]
   technicianProfile         TechnicianProfile?
-  customerProfile           Customer?            @relation("CustomerUser")
-  createdCustomers          Customer[]           @relation("CustomerCreatedBy")
-  deletedCustomers          Customer[]           @relation("CustomerDeletedBy")
-  assignedCustomers         Customer[]           @relation("CustomerAssignedTechnician")
-  customerNotesAuthored     CustomerNote[]       @relation("CustomerNoteAuthor")
-  customerDocumentsUploaded CustomerDocument[]   @relation("CustomerDocumentUploadedBy")
-  createdServices           Service[]            @relation("ServiceCreatedBy")
-  ownedServiceRequests      ServiceRequest[]     @relation("ServiceRequestOwner")
-  createdServiceRequests    ServiceRequest[]     @relation("ServiceRequestCreatedBy")
-  inspections               SiteInspection[]     @relation("InspectorUser")
-  createdQuotations         Quotation[]          @relation("QuotationCreatedBy")
-  managedProjects           Project[]            @relation("ProjectManager")
+  customerProfile           Customer?                @relation("CustomerUser")
+  createdCustomers          Customer[]               @relation("CustomerCreatedBy")
+  deletedCustomers          Customer[]               @relation("CustomerDeletedBy")
+  assignedCustomers         Customer[]               @relation("CustomerAssignedTechnician")
+  customerNotesAuthored     CustomerNote[]           @relation("CustomerNoteAuthor")
+  customerDocumentsUploaded CustomerDocument[]       @relation("CustomerDocumentUploadedBy")
+  createdServices           Service[]                @relation("ServiceCreatedBy")
+  ownedServiceRequests      ServiceRequest[]         @relation("ServiceRequestOwner")
+  createdServiceRequests    ServiceRequest[]         @relation("ServiceRequestCreatedBy")
+  inspections               SiteInspection[]         @relation("InspectorUser")
+  createdQuotations         Quotation[]              @relation("QuotationCreatedBy")
+  managedProjects           Project[]                @relation("ProjectManager")
   supervisedProjects        ProjectSupervisor[]
-  createdTasks              Task[]               @relation("TaskCreatedBy")
+  staffAssignments          ProjectStaffAssignment[] @relation("ProjectStaffAssignmentUser")
+  staffAssignmentsMade      ProjectStaffAssignment[] @relation("ProjectStaffAssignmentAssignedBy")
+  createdTasks              Task[]                   @relation("TaskCreatedBy")
   taskAssignments           TaskAssignment[]
-  submittedExpenses         Expense[]            @relation("ExpenseSubmittedBy")
-  approvedExpenses          Expense[]            @relation("ExpenseApprovedBy")
-  recordedPayments          Payment[]            @relation("PaymentRecordedBy")
+  submittedExpenses         Expense[]                @relation("ExpenseSubmittedBy")
+  approvedExpenses          Expense[]                @relation("ExpenseApprovedBy")
+  recordedPayments          Payment[]                @relation("PaymentRecordedBy")
   notifications             Notification[]
   auditLogs                 AuditLog[]
   passwordResetTokens       PasswordResetToken[]
@@ -847,17 +865,18 @@ model Project {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  quotation      Quotation           @relation(fields: [quotationId], references: [id])
-  customer       Customer            @relation(fields: [customerId], references: [id])
-  projectManager User?               @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  supervisors    ProjectSupervisor[]
-  milestones     ProjectMilestone[]
-  documents      ProjectDocument[]
-  tasks          Task[]
-  materials      ProjectMaterial[]
-  expenses       Expense[]
-  invoices       Invoice[]
-  feedback       CustomerFeedback[]
+  quotation        Quotation                @relation(fields: [quotationId], references: [id])
+  customer         Customer                 @relation(fields: [customerId], references: [id])
+  projectManager   User?                    @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  supervisors      ProjectSupervisor[]
+  staffAssignments ProjectStaffAssignment[]
+  milestones       ProjectMilestone[]
+  documents        ProjectDocument[]
+  tasks            Task[]
+  materials        ProjectMaterial[]
+  expenses         Expense[]
+  invoices         Invoice[]
+  feedback         CustomerFeedback[]
 
   @@index([status])
 }
@@ -871,6 +890,29 @@ model ProjectSupervisor {
   user    User    @relation(fields: [userId], references: [id])
 
   @@unique([projectId, userId])
+}
+
+// Staff Registration feature: assigns a staff User to a Project with a responsibility
+// and an optional date range. One row per (project, user) — editing responsibility/dates
+// reuses the same row instead of creating a duplicate assignment.
+model ProjectStaffAssignment {
+  id             String              @id @default(uuid())
+  projectId      String
+  userId         String
+  responsibility StaffResponsibility
+  startDate      DateTime?
+  endDate        DateTime?
+  notes          String?
+  assignedById   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User    @relation("ProjectStaffAssignmentUser", fields: [userId], references: [id])
+  assignedBy User?   @relation("ProjectStaffAssignmentAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([projectId, userId])
+  @@index([projectId])
 }
 
 model ProjectMilestone {

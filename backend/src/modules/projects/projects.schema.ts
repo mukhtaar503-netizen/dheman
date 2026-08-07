@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ProjectStatus } from '@prisma/client';
+import { ProjectStatus, StaffResponsibility } from '@prisma/client';
 
 export const createProjectFromQuotationSchema = z.object({
   body: z.object({
@@ -32,6 +32,35 @@ export const addSupervisorSchema = z.object({
   body: z.object({ userId: z.string().uuid() }),
   query: z.object({}).optional(),
   params: z.object({ id: z.string().uuid() }),
+});
+
+export const assignStaffSchema = z.object({
+  body: z.object({
+    userIds: z.array(z.string().uuid()).min(1),
+    responsibility: z.nativeEnum(StaffResponsibility),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    notes: z.string().optional(),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+});
+
+export const updateStaffAssignmentSchema = z.object({
+  body: z.object({
+    responsibility: z.nativeEnum(StaffResponsibility).optional(),
+    startDate: z.coerce.date().nullable().optional(),
+    endDate: z.coerce.date().nullable().optional(),
+    notes: z.string().nullable().optional(),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid(), staffId: z.string().uuid() }),
+});
+
+export const removeStaffAssignmentSchema = z.object({
+  body: z.object({}).optional(),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid(), staffId: z.string().uuid() }),
 });
 
 export const createMilestoneSchema = z.object({

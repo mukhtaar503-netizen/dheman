@@ -1,4 +1,4 @@
-import { InvoiceStatus, NotificationType, ProjectStatus, QuotationStatus, TaskStatus } from '@prisma/client';
+import { InvoiceStatus, NotificationType, ProjectStatus, QuotationStatus, StaffResponsibility, TaskStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/utils/http-error';
 import { recordAudit } from '@/utils/audit';
@@ -56,6 +56,13 @@ export async function getProjectById(id: string) {
       quotation: { include: { lineItems: true } },
       projectManager: { select: { id: true, fullName: true, email: true } },
       supervisors: { include: { user: { select: { id: true, fullName: true } } } },
+      staffAssignments: {
+        include: {
+          user: { select: { id: true, fullName: true, employeeId: true, role: true, phone: true, department: true } },
+          assignedBy: { select: { id: true, fullName: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
       milestones: true,
       documents: true,
       tasks: { include: { assignments: { include: { technician: { select: { id: true, fullName: true } } } } } },
@@ -98,6 +105,87 @@ export async function addSupervisor(actor: AuthUser, id: string, userId: string)
   await notify({ userId, type: NotificationType.PROJECT_STATUS_CHANGED, title: 'You have been added as Supervisor', body: id, entityType: 'Project', entityId: id });
   await recordAudit({ actorId: actor.id, action: 'ADD_SUPERVISOR', entityType: 'Project', entityId: id, after: supervisor });
   return supervisor;
+}
+
+/** Staff Registration: assign one or more staff Users to a Project with a shared responsibility/date range. */
+export async function assignStaff(
+  actor: AuthUser,
+  id: string,
+  input: { userIds: string[]; responsibility: StaffResponsibility; startDate?: Date; endDate?: Date; notes?: string },
+) {
+  await getProjectById(id);
+
+  const uniqueUserIds = Array.from(new Set(input.userIds));
+  const users = await prisma.user.findMany({ where: { id: { in: uniqueUserIds } }, select: { id: true, fullName: true, role: true } });
+  const missing = uniqueUserIds.filter((userId) => !users.some((u) => u.id === userId));
+  if (missing.length > 0) throw HttpError.badRequest('One or more selected staff members were not found', { missing });
+  if (users.some((u) => u.role === 'CUSTOMER')) throw HttpError.badRequest('A Customer account cannot be assigned as Project staff');
+
+  const existing = await prisma.projectStaffAssignment.findMany({
+    where: { projectId: id, userId: { in: uniqueUserIds } },
+    include: { user: { select: { fullName: true } } },
+  });
+  if (existing.length > 0) {
+    throw HttpError.conflict('One or more selected staff members are already assigned to this Project', {
+      duplicates: existing.map((e) => ({ userId: e.userId, fullName: e.user.fullName })),
+    });
+  }
+
+  const created = await prisma.$transaction(
+    uniqueUserIds.map((userId) =>
+      prisma.projectStaffAssignment.create({
+        data: {
+          projectId: id,
+          userId,
+          responsibility: input.responsibility,
+          startDate: input.startDate,
+          endDate: input.endDate,
+          notes: input.notes,
+          assignedById: actor.id,
+        },
+      }),
+    ),
+  );
+
+  for (const userId of uniqueUserIds) {
+    await notify({
+      userId,
+      type: NotificationType.PROJECT_STATUS_CHANGED,
+      title: 'You have been assigned to a Project',
+      body: id,
+      entityType: 'Project',
+      entityId: id,
+    });
+  }
+
+  await recordAudit({ actorId: actor.id, action: 'ASSIGN_STAFF', entityType: 'Project', entityId: id, after: created });
+  return created;
+}
+
+export async function updateStaffAssignment(
+  actor: AuthUser,
+  id: string,
+  staffId: string,
+  input: { responsibility?: StaffResponsibility; startDate?: Date | null; endDate?: Date | null; notes?: string | null },
+) {
+  const before = await prisma.projectStaffAssignment.findUnique({ where: { id: staffId } });
+  if (!before || before.projectId !== id) throw HttpError.notFound('Staff assignment not found for this Project');
+
+  const updated = await prisma.projectStaffAssignment.update({
+    where: { id: staffId },
+    data: input,
+    include: { user: { select: { id: true, fullName: true, employeeId: true, role: true, phone: true, department: true } } },
+  });
+  await recordAudit({ actorId: actor.id, action: 'UPDATE_STAFF_ASSIGNMENT', entityType: 'Project', entityId: id, before, after: updated });
+  return updated;
+}
+
+export async function removeStaffAssignment(actor: AuthUser, id: string, staffId: string) {
+  const before = await prisma.projectStaffAssignment.findUnique({ where: { id: staffId } });
+  if (!before || before.projectId !== id) throw HttpError.notFound('Staff assignment not found for this Project');
+
+  await prisma.projectStaffAssignment.delete({ where: { id: staffId } });
+  await recordAudit({ actorId: actor.id, action: 'REMOVE_STAFF_ASSIGNMENT', entityType: 'Project', entityId: id, before });
 }
 
 export async function addMilestone(actor: AuthUser, id: string, input: { name: string; targetDate?: Date }) {

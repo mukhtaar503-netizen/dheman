@@ -9,12 +9,15 @@ import * as controller from './projects.controller';
 import {
   addDocumentSchema,
   addSupervisorSchema,
+  assignStaffSchema,
   completeMilestoneSchema,
   createMilestoneSchema,
   createProjectFromQuotationSchema,
   holdOrCancelSchema,
   listProjectsSchema,
+  removeStaffAssignmentSchema,
   updateProjectSchema,
+  updateStaffAssignmentSchema,
 } from './projects.schema';
 
 const router = Router();
@@ -72,6 +75,33 @@ router.patch('/:id', validate(updateProjectSchema), asyncHandler(controller.upda
  *     tags: [Projects]
  */
 router.post('/:id/supervisors', validate(addSupervisorSchema), asyncHandler(controller.addSupervisor));
+
+/**
+ * @openapi
+ * /projects/{id}/staff:
+ *   post:
+ *     summary: Assign one or more Staff members to a Project (Staff Registration)
+ *     tags: [Projects]
+ */
+router.post('/:id/staff', validate(assignStaffSchema), asyncHandler(controller.assignStaff));
+
+/**
+ * @openapi
+ * /projects/{id}/staff/{staffId}:
+ *   patch:
+ *     summary: Update a Staff assignment's responsibility/dates/notes
+ *     tags: [Projects]
+ */
+router.patch('/:id/staff/:staffId', validate(updateStaffAssignmentSchema), asyncHandler(controller.updateStaffAssignment));
+
+/**
+ * @openapi
+ * /projects/{id}/staff/{staffId}:
+ *   delete:
+ *     summary: Remove a Staff assignment from a Project
+ *     tags: [Projects]
+ */
+router.delete('/:id/staff/:staffId', validate(removeStaffAssignmentSchema), asyncHandler(controller.removeStaffAssignment));
 
 /**
  * @openapi

@@ -27,6 +27,19 @@ export async function addSupervisor(req: Request, res: Response) {
   res.status(201).json(await service.addSupervisor(req.user!, req.params.id, req.body.userId));
 }
 
+export async function assignStaff(req: Request, res: Response) {
+  res.status(201).json(await service.assignStaff(req.user!, req.params.id, req.body));
+}
+
+export async function updateStaffAssignment(req: Request, res: Response) {
+  res.status(200).json(await service.updateStaffAssignment(req.user!, req.params.id, req.params.staffId, req.body));
+}
+
+export async function removeStaffAssignment(req: Request, res: Response) {
+  await service.removeStaffAssignment(req.user!, req.params.id, req.params.staffId);
+  res.status(204).send();
+}
+
 export async function addMilestone(req: Request, res: Response) {
   res.status(201).json(await service.addMilestone(req.user!, req.params.id, req.body));
 }

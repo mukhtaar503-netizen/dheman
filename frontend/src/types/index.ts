@@ -544,3 +544,67 @@ export interface CompanySettings {
   currency: string;
   quotationValidityDays: number;
 }
+
+export type ProjectStatus = 'PLANNING' | 'SCHEDULED' | 'IN_PROGRESS' | 'ON_HOLD' | 'COMPLETED' | 'CLOSED' | 'CANCELLED';
+
+// Staff Registration feature — responsibility a staff member holds on a Project.
+export type StaffResponsibility =
+  | 'SUPERVISOR'
+  | 'TECHNICIAN'
+  | 'INSTALLER'
+  | 'ELECTRICIAN'
+  | 'CARPENTER'
+  | 'PLUMBER'
+  | 'PAINTER'
+  | 'DRIVER'
+  | 'HELPER'
+  | 'OTHER';
+
+export interface StaffUser {
+  id: string;
+  fullName: string;
+  employeeId?: string | null;
+  role: Role;
+  phone?: string | null;
+  department?: string | null;
+}
+
+export interface ProjectStaffAssignment {
+  id: string;
+  projectId: string;
+  userId: string;
+  responsibility: StaffResponsibility;
+  startDate?: string | null;
+  endDate?: string | null;
+  notes?: string | null;
+  assignedById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user: StaffUser;
+  assignedBy?: { id: string; fullName: string } | null;
+}
+
+export interface Project {
+  id: string;
+  projectNo: string;
+  quotationId: string;
+  customerId: string;
+  status: ProjectStatus;
+  projectManagerId?: string | null;
+  startDate?: string | null;
+  targetEndDate?: string | null;
+  actualEndDate?: string | null;
+  holdReason?: string | null;
+  cancelReason?: string | null;
+  completionPercent: number | string;
+  customerSignOffAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer: Customer;
+  projectManager?: { id: string; fullName: string; email?: string } | null;
+  staffAssignments: ProjectStaffAssignment[];
+  milestones: { id: string; name: string; targetDate?: string | null; completedAt?: string | null; status: string }[];
+  documents: { id: string; fileUrl: string; fileName: string; createdAt: string }[];
+  tasks: { id: string; title: string; status: string }[];
+  invoices: { id: string; status: string }[];
+}

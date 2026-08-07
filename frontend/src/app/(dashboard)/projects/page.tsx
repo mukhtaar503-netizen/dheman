@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ interface ProjectRow {
 }
 
 function ProjectsList() {
+  const router = useRouter();
   const status = useSearchParams().get('status') ?? undefined;
 
   const { data, isLoading } = useQuery({
@@ -52,7 +53,7 @@ function ProjectsList() {
             </TableHeader>
             <TableBody>
               {data.items.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="cursor-pointer" onClick={() => router.push(`/projects/${p.id}`)}>
                   <TableCell className="font-medium">{p.projectNo}</TableCell>
                   <TableCell>{p.customer.fullName}</TableCell>
                   <TableCell>{p.projectManager?.fullName ?? '—'}</TableCell>

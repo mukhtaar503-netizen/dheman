@@ -15,6 +15,8 @@ export const createUserSchema = z.object({
     fullName: z.string().min(2),
     email: z.string().email(),
     phone: z.string().optional(),
+    employeeId: z.string().min(1).optional(),
+    department: z.string().optional(),
     password: passwordSchema,
     role: z.nativeEnum(Role),
   }),
@@ -26,6 +28,8 @@ export const updateUserSchema = z.object({
   body: z.object({
     fullName: z.string().min(2).optional(),
     phone: z.string().optional(),
+    employeeId: z.string().min(1).optional(),
+    department: z.string().optional(),
     status: z.nativeEnum(UserStatus).optional(),
     role: z.nativeEnum(Role).optional(),
   }),
@@ -47,6 +51,7 @@ export const listUsersSchema = z.object({
   query: z.object({
     role: z.nativeEnum(Role).optional(),
     status: z.nativeEnum(UserStatus).optional(),
+    search: z.string().optional(),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   }),
