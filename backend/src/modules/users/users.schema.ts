@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Role, UserStatus } from '@prisma/client';
+import { EmployeeDocumentCategory, Role, UserStatus } from '@prisma/client';
 
 const passwordSchema = z
   .string()
@@ -17,6 +17,10 @@ export const createUserSchema = z.object({
     phone: z.string().optional(),
     employeeId: z.string().min(1).optional(),
     department: z.string().optional(),
+    jobTitle: z.string().optional(),
+    address: z.string().optional(),
+    hireDate: z.coerce.date().optional(),
+    photoUrl: z.string().url().optional(),
     password: passwordSchema,
     role: z.nativeEnum(Role),
   }),
@@ -30,6 +34,10 @@ export const updateUserSchema = z.object({
     phone: z.string().optional(),
     employeeId: z.string().min(1).optional(),
     department: z.string().optional(),
+    jobTitle: z.string().optional(),
+    address: z.string().optional(),
+    hireDate: z.coerce.date().optional(),
+    photoUrl: z.string().url().optional(),
     status: z.nativeEnum(UserStatus).optional(),
     role: z.nativeEnum(Role).optional(),
   }),
@@ -51,9 +59,38 @@ export const listUsersSchema = z.object({
   query: z.object({
     role: z.nativeEnum(Role).optional(),
     status: z.nativeEnum(UserStatus).optional(),
+    department: z.string().optional(),
     search: z.string().optional(),
+    sort: z.enum(['newest', 'oldest', 'alphabetical']).default('newest'),
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   }),
   params: z.object({}).optional(),
+});
+
+export const requestEmployeeDocumentUploadUrlSchema = z.object({
+  body: z.object({
+    fileName: z.string().min(1),
+    mimeType: z.string().optional(),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+});
+
+export const addEmployeeDocumentSchema = z.object({
+  body: z.object({
+    category: z.nativeEnum(EmployeeDocumentCategory).default(EmployeeDocumentCategory.OTHER),
+    fileName: z.string().min(1),
+    fileUrl: z.string().min(1),
+    fileSize: z.number().int().positive().max(10 * 1024 * 1024).optional(),
+    mimeType: z.string().optional(),
+  }),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid() }),
+});
+
+export const employeeDocumentParamsSchema = z.object({
+  body: z.object({}).optional(),
+  query: z.object({}).optional(),
+  params: z.object({ id: z.string().uuid(), documentId: z.string().uuid() }),
 });

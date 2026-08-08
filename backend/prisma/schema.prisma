@@ -85,6 +85,14 @@ enum CustomerDocumentCategory {
   OTHER
 }
 
+enum EmployeeDocumentCategory {
+  ID_CARD
+  CONTRACT
+  CERTIFICATE
+  RESUME
+  OTHER
+}
+
 enum ServiceRequestStatus {
   NEW
   UNDER_REVIEW
@@ -280,6 +288,10 @@ model User {
   phone               String?
   employeeId          String?    @unique
   department          String?
+  jobTitle            String?
+  address             String?
+  hireDate            DateTime?
+  photoUrl            String?
   role                Role
   status              UserStatus @default(ACTIVE)
   failedLoginAttempts Int        @default(0)
@@ -288,6 +300,8 @@ model User {
   updatedAt           DateTime   @updatedAt
 
   refreshTokens             RefreshToken[]
+  employeeDocuments         EmployeeDocument[]       @relation("EmployeeDocumentOwner")
+  employeeDocumentsUploaded EmployeeDocument[]       @relation("EmployeeDocumentUploadedBy")
   technicianProfile         TechnicianProfile?
   customerProfile           Customer?                @relation("CustomerUser")
   createdCustomers          Customer[]               @relation("CustomerCreatedBy")
@@ -328,6 +342,25 @@ model RefreshToken {
   createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Employee Management: ID cards, contracts, certificates, etc. attached to a
+// staff User. Shares the same signed-upload flow as CustomerDocument/ProjectDocument.
+model EmployeeDocument {
+  id           String                   @id @default(uuid())
+  userId       String
+  category     EmployeeDocumentCategory @default(OTHER)
+  fileName     String
+  fileUrl      String
+  fileSize     Int?
+  mimeType     String?
+  uploadedById String?
+  createdAt    DateTime                 @default(now())
+
+  user       User  @relation("EmployeeDocumentOwner", fields: [userId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation("EmployeeDocumentUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([userId])
 }

@@ -1,8 +1,17 @@
 import { prisma } from '@/lib/prisma';
 
-export async function listAuditLogs(filters: { entityType?: string; actorId?: string; from?: Date; to?: Date; page: number; pageSize: number }) {
+export async function listAuditLogs(filters: {
+  entityType?: string;
+  entityId?: string;
+  actorId?: string;
+  from?: Date;
+  to?: Date;
+  page: number;
+  pageSize: number;
+}) {
   const where = {
     ...(filters.entityType ? { entityType: filters.entityType } : {}),
+    ...(filters.entityId ? { entityId: filters.entityId } : {}),
     ...(filters.actorId ? { actorId: filters.actorId } : {}),
     ...(filters.from || filters.to
       ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }

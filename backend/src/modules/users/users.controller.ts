@@ -28,3 +28,20 @@ export async function getOwnProfile(req: Request, res: Response) {
 export async function updateOwnProfile(req: Request, res: Response) {
   res.status(200).json(await usersService.updateOwnProfile(req.user!, req.body));
 }
+
+export async function getStatistics(req: Request, res: Response) {
+  res.status(200).json(await usersService.getUserStatistics());
+}
+
+export async function requestDocumentUploadUrl(req: Request, res: Response) {
+  res.status(200).json(await usersService.requestEmployeeDocumentUploadUrl(req.params.id, req.body.fileName));
+}
+
+export async function addDocument(req: Request, res: Response) {
+  res.status(201).json(await usersService.addEmployeeDocument(req.user!, req.params.id, req.body));
+}
+
+export async function deleteDocument(req: Request, res: Response) {
+  await usersService.deleteEmployeeDocument(req.user!, req.params.id, req.params.documentId);
+  res.status(204).send();
+}

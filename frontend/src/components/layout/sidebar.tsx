@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ClipboardList, FileText, FolderKanban, Wrench, Receipt, X } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, FileText, FolderKanban, Wrench, Receipt, IdCard, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BRAND } from '@/lib/brand';
 import { NAV_ITEMS } from './nav-items';
@@ -15,6 +15,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   '/quotations': FileText,
   '/projects': FolderKanban,
   '/technicians': Wrench,
+  '/employees': IdCard,
   '/invoices': Receipt,
 };
 

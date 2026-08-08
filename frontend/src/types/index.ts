@@ -608,3 +608,59 @@ export interface Project {
   tasks: { id: string; title: string; status: string }[];
   invoices: { id: string; status: string }[];
 }
+
+// Employee Management — built on top of the existing User/staff identity (same
+// records already used for login, RBAC, and Staff Registration on Projects).
+export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
+export type EmployeeDocumentCategory = 'ID_CARD' | 'CONTRACT' | 'CERTIFICATE' | 'RESUME' | 'OTHER';
+
+export interface Employee {
+  id: string;
+  email: string;
+  fullName: string;
+  phone?: string | null;
+  employeeId?: string | null;
+  department?: string | null;
+  jobTitle?: string | null;
+  address?: string | null;
+  hireDate?: string | null;
+  photoUrl?: string | null;
+  role: Role;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmployeeDocument {
+  id: string;
+  category: EmployeeDocumentCategory;
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number | null;
+  mimeType?: string | null;
+  createdAt: string;
+  uploadedBy?: { id: string; fullName: string } | null;
+}
+
+export interface EmployeeDetail extends Employee {
+  technicianProfile?: { id: string; skills: string[]; employmentType: string; status: string } | null;
+  employeeDocuments: EmployeeDocument[];
+}
+
+export interface EmployeeStatistics {
+  totalEmployees: number;
+  activeEmployees: number;
+  inactiveEmployees: number;
+  onLeaveEmployees: number;
+  byDepartment: { department: string; count: number }[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorId?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  createdAt: string;
+  actor?: { id: string; fullName: string; email: string; role: Role } | null;
+}

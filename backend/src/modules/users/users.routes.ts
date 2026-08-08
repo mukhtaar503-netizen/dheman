@@ -7,7 +7,15 @@ import { PERMISSIONS } from '@/config/permissions';
 import * as usersController from './users.controller';
 import * as rbacController from '@/modules/rbac/rbac.controller';
 import { assignRoleSchema, removeRoleSchema } from '@/modules/rbac/rbac.schema';
-import { createUserSchema, listUsersSchema, updateOwnProfileSchema, updateUserSchema } from './users.schema';
+import {
+  addEmployeeDocumentSchema,
+  createUserSchema,
+  employeeDocumentParamsSchema,
+  listUsersSchema,
+  requestEmployeeDocumentUploadUrlSchema,
+  updateOwnProfileSchema,
+  updateUserSchema,
+} from './users.schema';
 
 const router = Router();
 router.use(requireAuth);
@@ -31,6 +39,15 @@ router.get('/me', asyncHandler(usersController.getOwnProfile));
 router.patch('/me', validate(updateOwnProfileSchema), asyncHandler(usersController.updateOwnProfile));
 
 router.use(requirePermission(PERMISSIONS.USERS_MANAGE));
+
+/**
+ * @openapi
+ * /users/statistics:
+ *   get:
+ *     summary: Employee Management dashboard statistics — totals by status/department
+ *     tags: [Users]
+ */
+router.get('/statistics', asyncHandler(usersController.getStatistics));
 
 /**
  * @openapi
@@ -67,6 +84,37 @@ router.get('/:id', asyncHandler(usersController.getUser));
  *     tags: [Users]
  */
 router.patch('/:id', validate(updateUserSchema), asyncHandler(usersController.updateUser));
+
+/**
+ * @openapi
+ * /users/{id}/documents/upload-url:
+ *   post:
+ *     summary: Mint a signed Supabase Storage upload URL for an Employee document/photo
+ *     tags: [Users]
+ */
+router.post(
+  '/:id/documents/upload-url',
+  validate(requestEmployeeDocumentUploadUrlSchema),
+  asyncHandler(usersController.requestDocumentUploadUrl),
+);
+
+/**
+ * @openapi
+ * /users/{id}/documents:
+ *   post:
+ *     summary: Record an Employee document after it's been uploaded to storage
+ *     tags: [Users]
+ */
+router.post('/:id/documents', validate(addEmployeeDocumentSchema), asyncHandler(usersController.addDocument));
+
+/**
+ * @openapi
+ * /users/{id}/documents/{documentId}:
+ *   delete:
+ *     summary: Delete an Employee document
+ *     tags: [Users]
+ */
+router.delete('/:id/documents/:documentId', validate(employeeDocumentParamsSchema), asyncHandler(usersController.deleteDocument));
 
 /**
  * @openapi

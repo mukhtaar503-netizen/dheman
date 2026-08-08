@@ -4,6 +4,7 @@ export const listAuditLogsSchema = z.object({
   body: z.object({}).optional(),
   query: z.object({
     entityType: z.string().optional(),
+    entityId: z.string().optional(),
     actorId: z.string().uuid().optional(),
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
