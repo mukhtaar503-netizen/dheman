@@ -3,7 +3,6 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -14,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Customer, MaterialEstimateRow, PaginatedResult, ServiceRequest } from '@/types';
+import type { Customer, PaginatedResult, ServiceRequest } from '@/types';
 
 interface ServiceCategory {
   id: string;
@@ -27,15 +26,6 @@ interface Service {
 interface InspectorOption {
   id: string;
   fullName: string;
-}
-interface MeasurementRow {
-  label: string;
-  length: string;
-  width: string;
-  height: string;
-  unit: string;
-  quantity: string;
-  notes: string;
 }
 
 const todayLocalDate = () => new Date().toISOString().slice(0, 10);
@@ -62,40 +52,14 @@ export default function NewSiteInspectionPage() {
 
   // Site information
   const [siteAddress, setSiteAddress] = React.useState('');
-  const [landmark, setLandmark] = React.useState('');
   const [city, setCity] = React.useState('');
-  const [region, setRegion] = React.useState('');
-  const [latitude, setLatitude] = React.useState('');
-  const [longitude, setLongitude] = React.useState('');
 
   // Inspection details
   const [inspectionDate, setInspectionDate] = React.useState(todayLocalDate());
-  const [inspectionTime, setInspectionTime] = React.useState('09:00');
   const [inspectorId, setInspectorId] = React.useState('');
   const [inspectionPurpose, setInspectionPurpose] = React.useState('');
   const [customerRequirements, setCustomerRequirements] = React.useState('');
-  const [existingSiteCondition, setExistingSiteCondition] = React.useState('');
   const [technicalNotes, setTechnicalNotes] = React.useState('');
-
-  // Measurements
-  const [measurements, setMeasurements] = React.useState<MeasurementRow[]>([]);
-
-  // Materials assessment
-  const [materials, setMaterials] = React.useState<MaterialEstimateRow[]>([]);
-
-  // Labor assessment
-  const [estimatedWorkers, setEstimatedWorkers] = React.useState('');
-  const [estimatedWorkingDays, setEstimatedWorkingDays] = React.useState('');
-  const [specialSkillsRequired, setSpecialSkillsRequired] = React.useState('');
-
-  // Transportation
-  const [vehicleRequired, setVehicleRequired] = React.useState('');
-  const [transportDistance, setTransportDistance] = React.useState('');
-  const [accessibility, setAccessibility] = React.useState('');
-  const [transportationNotes, setTransportationNotes] = React.useState('');
-
-  // Internal notes
-  const [internalNotes, setInternalNotes] = React.useState('');
 
   const debouncedCustomerSearch = useDebouncedValue(customerSearch);
   const { data: customers } = useQuery({
@@ -143,48 +107,20 @@ export default function NewSiteInspectionPage() {
         targetServiceRequestId = created.id;
       }
 
-      const scheduledAt = new Date(`${inspectionDate}T${inspectionTime || '09:00'}:00`).toISOString();
+      const scheduledAt = new Date(`${inspectionDate}T09:00:00`).toISOString();
 
-      // Measurements/materials/technical notes are sent directly on create (not via the
-      // on-site /details endpoint, which only accepts SCHEDULED/IN_PROGRESS inspections and
-      // would reject a PENDING draft) so nothing typed here is lost when saving as a draft.
+      // Detailed fields (measurements, materials, labor, transportation, internal notes,
+      // photos/videos/documents) are added afterward from the inspection details page.
       const inspection = await api.post<{ id: string }>('/inspections', {
         serviceRequestId: targetServiceRequestId,
         inspectorId,
         scheduledAt,
         status,
         siteAddress: siteAddress || undefined,
-        landmark: landmark || undefined,
         city: city || undefined,
-        region: region || undefined,
-        latitude: latitude ? Number(latitude) : undefined,
-        longitude: longitude ? Number(longitude) : undefined,
         inspectionPurpose: inspectionPurpose || undefined,
         customerRequirements: customerRequirements || undefined,
-        existingSiteCondition: existingSiteCondition || undefined,
         technicalNotes: technicalNotes || undefined,
-        internalNotes: internalNotes || undefined,
-        estimatedWorkers: estimatedWorkers ? Number(estimatedWorkers) : undefined,
-        estimatedWorkingDays: estimatedWorkingDays ? Number(estimatedWorkingDays) : undefined,
-        specialSkillsRequired: specialSkillsRequired || undefined,
-        vehicleRequired: vehicleRequired || undefined,
-        transportDistance: transportDistance ? Number(transportDistance) : undefined,
-        accessibility: accessibility || undefined,
-        transportationNotes: transportationNotes || undefined,
-        measurements: measurements.length
-          ? measurements
-              .filter((m) => m.label)
-              .map((m) => ({
-                label: m.label,
-                length: m.length ? Number(m.length) : undefined,
-                width: m.width ? Number(m.width) : undefined,
-                height: m.height ? Number(m.height) : undefined,
-                unit: m.unit || undefined,
-                quantity: m.quantity ? Number(m.quantity) : undefined,
-                notes: m.notes || undefined,
-              }))
-          : undefined,
-        materialEstimate: materials.length ? materials.filter((m) => m.material) : undefined,
       });
       return inspection;
     },
@@ -382,30 +318,10 @@ export default function NewSiteInspectionPage() {
             <Label htmlFor="siteAddress">Site Address</Label>
             <Input id="siteAddress" value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="e.g. Villa 12, Al Nahda" />
           </div>
-          <section className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label htmlFor="landmark">Landmark</Label>
-              <Input id="landmark" value={landmark} onChange={(e) => setLandmark(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="city">City</Label>
-              <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="region">Region</Label>
-              <Input id="region" value={region} onChange={(e) => setRegion(e.target.value)} />
-            </div>
-          </section>
-          <section className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="latitude">GPS Latitude (optional)</Label>
-              <Input id="latitude" type="number" value={latitude} onChange={(e) => setLatitude(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="longitude">GPS Longitude (optional)</Label>
-              <Input id="longitude" type="number" value={longitude} onChange={(e) => setLongitude(e.target.value)} />
-            </div>
-          </section>
+          <div className="space-y-1">
+            <Label htmlFor="city">City</Label>
+            <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
         </CardContent>
       </Card>
 
@@ -414,14 +330,10 @@ export default function NewSiteInspectionPage() {
           <CardTitle>Inspection Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <section className="grid gap-4 sm:grid-cols-3">
+          <section className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="inspectionDate">Inspection Date</Label>
               <Input id="inspectionDate" type="date" value={inspectionDate} onChange={(e) => setInspectionDate(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="inspectionTime">Inspection Time</Label>
-              <Input id="inspectionTime" type="time" value={inspectionTime} onChange={(e) => setInspectionTime(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Assigned Inspector</Label>
@@ -448,180 +360,15 @@ export default function NewSiteInspectionPage() {
             <Textarea id="customerRequirements" rows={2} value={customerRequirements} onChange={(e) => setCustomerRequirements(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="existingSiteCondition">Existing Site Condition</Label>
-            <Textarea id="existingSiteCondition" rows={2} value={existingSiteCondition} onChange={(e) => setExistingSiteCondition(e.target.value)} />
-          </div>
-          <div className="space-y-1">
             <Label htmlFor="technicalNotes">Technical Notes</Label>
             <Textarea id="technicalNotes" rows={2} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} />
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Measurements</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setMeasurements([...measurements, { label: '', length: '', width: '', height: '', unit: 'ft', quantity: '1', notes: '' }])}
-          >
-            <Plus className="mr-1 h-4 w-4" /> Add Row
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {measurements.length === 0 && <p className="text-sm text-muted-foreground">No measurements added yet.</p>}
-          {measurements.map((m, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-8">
-              <Input
-                className="sm:col-span-2"
-                placeholder="Area/Room"
-                value={m.label}
-                onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, label: e.target.value } : r)))}
-              />
-              <Input
-                type="number"
-                placeholder="Length"
-                value={m.length}
-                onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, length: e.target.value } : r)))}
-              />
-              <Input
-                type="number"
-                placeholder="Width"
-                value={m.width}
-                onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, width: e.target.value } : r)))}
-              />
-              <Input
-                type="number"
-                placeholder="Height"
-                value={m.height}
-                onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, height: e.target.value } : r)))}
-              />
-              <Select value={m.unit} onValueChange={(v) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, unit: v } : r)))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ft">Feet</SelectItem>
-                  <SelectItem value="m">Meter</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="Qty"
-                value={m.quantity}
-                onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, quantity: e.target.value } : r)))}
-              />
-              <div className="flex gap-1">
-                <Input
-                  placeholder="Notes"
-                  value={m.notes}
-                  onChange={(e) => setMeasurements(measurements.map((r, idx) => (idx === i ? { ...r, notes: e.target.value } : r)))}
-                />
-                <Button variant="ghost" size="sm" onClick={() => setMeasurements(measurements.filter((_, idx) => idx !== i))}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Materials Assessment</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setMaterials([...materials, { material: '', quantity: '', unit: '', remarks: '' }])}>
-            <Plus className="mr-1 h-4 w-4" /> Add Material
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {materials.length === 0 && <p className="text-sm text-muted-foreground">No materials added yet.</p>}
-          {materials.map((m, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              <Input
-                placeholder="Material Name"
-                value={m.material}
-                onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, material: e.target.value } : r)))}
-              />
-              <Input
-                placeholder="Unit"
-                value={m.unit ?? ''}
-                onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, unit: e.target.value } : r)))}
-              />
-              <Input
-                placeholder="Estimated Quantity"
-                value={m.quantity}
-                onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, quantity: e.target.value } : r)))}
-              />
-              <Input
-                placeholder="Remarks"
-                value={m.remarks ?? ''}
-                onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, remarks: e.target.value } : r)))}
-              />
-              <Button variant="ghost" size="sm" onClick={() => setMaterials(materials.filter((_, idx) => idx !== i))}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Labor Assessment</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="estimatedWorkers">Estimated Workers</Label>
-            <Input id="estimatedWorkers" type="number" value={estimatedWorkers} onChange={(e) => setEstimatedWorkers(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="estimatedWorkingDays">Estimated Working Days</Label>
-            <Input id="estimatedWorkingDays" type="number" value={estimatedWorkingDays} onChange={(e) => setEstimatedWorkingDays(e.target.value)} />
-          </div>
-          <div className="space-y-1 sm:col-span-1">
-            <Label htmlFor="specialSkillsRequired">Special Skills Required</Label>
-            <Input id="specialSkillsRequired" value={specialSkillsRequired} onChange={(e) => setSpecialSkillsRequired(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transportation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <section className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="vehicleRequired">Vehicle Required</Label>
-              <Input id="vehicleRequired" value={vehicleRequired} onChange={(e) => setVehicleRequired(e.target.value)} placeholder="e.g. Pickup truck" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="transportDistance">Distance (km)</Label>
-              <Input id="transportDistance" type="number" value={transportDistance} onChange={(e) => setTransportDistance(e.target.value)} />
-            </div>
-          </section>
-          <div className="space-y-1">
-            <Label htmlFor="accessibility">Accessibility</Label>
-            <Input id="accessibility" value={accessibility} onChange={(e) => setAccessibility(e.target.value)} placeholder="e.g. Narrow street, no elevator" />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="transportationNotes">Transportation Notes</Label>
-            <Textarea id="transportationNotes" rows={2} value={transportationNotes} onChange={(e) => setTransportationNotes(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Internal Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea rows={4} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Engineer / inspector remarks" />
-        </CardContent>
-      </Card>
-
-      <p className="text-xs text-muted-foreground">Photos, videos, drawings, and documents can be attached from the inspection details page once it&apos;s registered.</p>
+      <p className="text-xs text-muted-foreground">
+        Measurements, materials, labor, transportation, internal notes, and photos/videos/documents can be added from the inspection details page once it&apos;s registered.
+      </p>
 
       <div className="flex flex-col items-end gap-2 pb-8">
         {!canSubmit && (
