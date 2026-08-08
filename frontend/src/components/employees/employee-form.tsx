@@ -25,10 +25,18 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'ACCOUNTANT', label: 'Accountant' },
 ];
 
+const PASSWORD_HINT = 'At least 8 characters, with an uppercase letter, a number, and a symbol.';
+
 const employeeFormSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   email: z.string().email('Enter a valid email'),
-  password: z.string().optional(),
+  password: z
+    .string()
+    .optional()
+    .refine(
+      (value) => !value || (value.length >= 8 && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value)),
+      PASSWORD_HINT,
+    ),
   phone: z.string().optional(),
   employeeId: z.string().optional(),
   department: z.string().optional(),
@@ -125,7 +133,11 @@ export function EmployeeForm({ employeeId, initial }: { employeeId?: string; ini
           <div className="space-y-1">
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" {...form.register('password')} />
-            <p className="text-xs text-muted-foreground">At least 8 characters, with an uppercase letter, a number, and a symbol.</p>
+            {form.formState.errors.password ? (
+              <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">{PASSWORD_HINT}</p>
+            )}
           </div>
         )}
       </section>

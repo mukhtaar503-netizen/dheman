@@ -3,10 +3,10 @@ import { EmployeeDocumentCategory, Role, UserStatus } from '@prisma/client';
 
 const passwordSchema = z
   .string()
-  .min(8)
-  .regex(/[A-Z]/)
-  .regex(/\d/)
-  .regex(/[^A-Za-z0-9]/);
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+  .regex(/\d/, 'Password must contain a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol');
 
 // Only Super Admin/Admin may create users, and only Super Admin may create another Super Admin —
 // that additional check is enforced in the service layer (R1/R2 restrictions in the PRD).
