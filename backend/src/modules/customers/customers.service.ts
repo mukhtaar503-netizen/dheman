@@ -645,24 +645,17 @@ export async function getCustomerStatistics() {
   const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
   const [
-    totalCustomers,
-    activeCustomers,
-    inactiveCustomers,
-    blockedCustomers,
-    businessCustomers,
-    individualCustomers,
+    byStatusRaw,
+    byTypeRaw,
     newCustomersThisMonth,
     customersWithActiveProjects,
     outstandingGroups,
     topSpenders,
     monthlyRows,
   ] = await Promise.all([
-    prisma.customer.count({ where: { deletedAt: null } }),
-    prisma.customer.count({ where: { deletedAt: null, status: CustomerStatus.ACTIVE } }),
-    prisma.customer.count({ where: { deletedAt: null, status: CustomerStatus.INACTIVE } }),
-    prisma.customer.count({ where: { deletedAt: null, status: CustomerStatus.BLOCKED } }),
-    prisma.customer.count({ where: { deletedAt: null, type: CustomerType.CORPORATE } }),
-    prisma.customer.count({ where: { deletedAt: null, type: CustomerType.INDIVIDUAL } }),
+    // One groupBy each for status/type instead of six separate COUNTs.
+    prisma.customer.groupBy({ by: ['status'], where: { deletedAt: null }, _count: { _all: true } }),
+    prisma.customer.groupBy({ by: ['type'], where: { deletedAt: null }, _count: { _all: true } }),
     prisma.customer.count({ where: { deletedAt: null, createdAt: { gte: startOfMonth } } }),
     prisma.customer.count({ where: { deletedAt: null, projects: { some: { status: { in: ACTIVE_PROJECT_STATUSES } } } } }),
     prisma.invoice.groupBy({ by: ['customerId'], _sum: { balance: true }, having: { balance: { _sum: { gt: 0 } } } }),
@@ -681,6 +674,15 @@ export async function getCustomerStatistics() {
       ORDER BY month ASC
     `,
   ]);
+
+  const byStatus = Object.fromEntries(byStatusRaw.map((row) => [row.status, row._count._all]));
+  const byType = Object.fromEntries(byTypeRaw.map((row) => [row.type, row._count._all]));
+  const totalCustomers = byStatusRaw.reduce((sum, row) => sum + row._count._all, 0);
+  const activeCustomers = byStatus[CustomerStatus.ACTIVE] ?? 0;
+  const inactiveCustomers = byStatus[CustomerStatus.INACTIVE] ?? 0;
+  const blockedCustomers = byStatus[CustomerStatus.BLOCKED] ?? 0;
+  const businessCustomers = byType[CustomerType.CORPORATE] ?? 0;
+  const individualCustomers = byType[CustomerType.INDIVIDUAL] ?? 0;
 
   const topCustomerIds = topSpenders.map((s) => s.customerId);
   const topCustomerRecords = topCustomerIds.length

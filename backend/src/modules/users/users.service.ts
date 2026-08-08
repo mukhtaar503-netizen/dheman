@@ -186,11 +186,14 @@ export async function updateOwnProfile(actor: AuthUser, input: { fullName?: stri
 }
 
 export async function getUserStatistics() {
-  const [total, active, inactive, onLeave, byDepartmentRaw] = await Promise.all([
-    prisma.user.count({ where: { role: { not: Role.CUSTOMER } } }),
-    prisma.user.count({ where: { role: { not: Role.CUSTOMER }, status: 'ACTIVE' } }),
-    prisma.user.count({ where: { role: { not: Role.CUSTOMER }, status: 'INACTIVE' } }),
-    prisma.user.count({ where: { role: { not: Role.CUSTOMER }, status: 'ON_LEAVE' } }),
+  // One groupBy for all three status counts instead of a separate COUNT per status —
+  // same result, one round trip to the DB instead of four.
+  const [byStatusRaw, byDepartmentRaw] = await Promise.all([
+    prisma.user.groupBy({
+      by: ['status'],
+      where: { role: { not: Role.CUSTOMER } },
+      _count: { _all: true },
+    }),
     prisma.user.groupBy({
       by: ['department'],
       where: { role: { not: Role.CUSTOMER }, department: { not: null } },
@@ -198,11 +201,14 @@ export async function getUserStatistics() {
     }),
   ]);
 
+  const byStatus = Object.fromEntries(byStatusRaw.map((row) => [row.status, row._count._all]));
+  const total = byStatusRaw.reduce((sum, row) => sum + row._count._all, 0);
+
   return {
     totalEmployees: total,
-    activeEmployees: active,
-    inactiveEmployees: inactive,
-    onLeaveEmployees: onLeave,
+    activeEmployees: byStatus.ACTIVE ?? 0,
+    inactiveEmployees: byStatus.INACTIVE ?? 0,
+    onLeaveEmployees: byStatus.ON_LEAVE ?? 0,
     byDepartment: byDepartmentRaw.map((row) => ({ department: row.department as string, count: row._count._all })),
   };
 }

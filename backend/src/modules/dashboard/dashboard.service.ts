@@ -61,7 +61,6 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     monthlyExpenses,
     completionRateAgg,
     satisfaction,
-    outstandingAgg,
     avgDurationAgg,
   ] = await Promise.all([
     prisma.customer.count({ where: { status: 'ACTIVE', createdAt: { lte: to } } }),
@@ -79,7 +78,6 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     sumApprovedExpenses(from, to),
     prisma.project.groupBy({ by: ['status'], _count: true }),
     getCustomerSatisfactionReport(),
-    prisma.invoice.aggregate({ _sum: { balance: true }, where: { status: { in: [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE] } } }),
     prisma.$queryRaw<{ avg_days: number | null }[]>`
       SELECT AVG(EXTRACT(EPOCH FROM ("actualEndDate" - "startDate")) / 86400) AS avg_days
       FROM "Project"
@@ -115,7 +113,7 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     projectCompletionRatePercent: completionRatePercent,
     averageProjectDurationDays,
     customerSatisfactionAverage: satisfaction.averageRating,
-    outstandingBalance: round2(Number(outstandingAgg._sum.balance ?? 0)),
+    outstandingBalance: round2(Number(pendingPaymentsAgg._sum.balance ?? 0)),
   };
 
   return { role: user.role, range: { from, to }, cards, performance };

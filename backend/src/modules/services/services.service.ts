@@ -144,10 +144,9 @@ export async function setServiceStatus(actor: AuthUser, id: string, status: Serv
 }
 
 export async function getServiceStatistics() {
-  const [total, active, inactive, byCategory, recentlyAdded, usageCounts] = await Promise.all([
-    prisma.service.count(),
-    prisma.service.count({ where: { status: ServiceStatus.ACTIVE } }),
-    prisma.service.count({ where: { status: ServiceStatus.INACTIVE } }),
+  const [byStatusRaw, byCategory, recentlyAdded, usageCounts] = await Promise.all([
+    // One groupBy for total/active/inactive instead of three separate COUNTs.
+    prisma.service.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.service.groupBy({ by: ['category'], _count: { _all: true } }),
     prisma.service.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
     prisma.quotationLineItem.groupBy({
@@ -158,6 +157,10 @@ export async function getServiceStatistics() {
       take: 5,
     }),
   ]);
+  const byStatus = Object.fromEntries(byStatusRaw.map((row) => [row.status, row._count._all]));
+  const total = byStatusRaw.reduce((sum, row) => sum + row._count._all, 0);
+  const active = byStatus[ServiceStatus.ACTIVE] ?? 0;
+  const inactive = byStatus[ServiceStatus.INACTIVE] ?? 0;
 
   const usedServiceIds = usageCounts.map((row) => row.serviceId).filter((id): id is string => id !== null);
   const usedServices = usedServiceIds.length

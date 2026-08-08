@@ -595,12 +595,9 @@ export async function emailQuotation(actor: AuthUser, id: string) {
 // ── Statistics (Section 7 — Dashboard Integration) ───────────────────────────
 
 export async function getQuotationStatistics() {
-  const [total, draft, sent, approved, rejected, revenueAgg, byStatus, monthlyRaw] = await Promise.all([
-    prisma.quotation.count(),
-    prisma.quotation.count({ where: { status: QuotationStatus.DRAFT } }),
-    prisma.quotation.count({ where: { status: QuotationStatus.SENT } }),
-    prisma.quotation.count({ where: { status: QuotationStatus.APPROVED } }),
-    prisma.quotation.count({ where: { status: QuotationStatus.REJECTED } }),
+  // byStatus's groupBy already carries the DRAFT/SENT/APPROVED/REJECTED counts, so the
+  // total and per-status figures below are derived from it instead of five separate COUNTs.
+  const [revenueAgg, byStatus, monthlyRaw] = await Promise.all([
     prisma.quotation.aggregate({ _sum: { total: true }, where: { status: QuotationStatus.APPROVED } }),
     prisma.quotation.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.$queryRaw<{ month: string; value: number }[]>`
@@ -611,6 +608,13 @@ export async function getQuotationStatistics() {
       ORDER BY month ASC
     `,
   ]);
+
+  const statusCounts = Object.fromEntries(byStatus.map((row) => [row.status, row._count._all]));
+  const total = byStatus.reduce((sum, row) => sum + row._count._all, 0);
+  const draft = statusCounts[QuotationStatus.DRAFT] ?? 0;
+  const sent = statusCounts[QuotationStatus.SENT] ?? 0;
+  const approved = statusCounts[QuotationStatus.APPROVED] ?? 0;
+  const rejected = statusCounts[QuotationStatus.REJECTED] ?? 0;
 
   const respondedCount = approved + rejected;
   const approvalRatePercent = respondedCount > 0 ? round2((approved / respondedCount) * 100) : null;

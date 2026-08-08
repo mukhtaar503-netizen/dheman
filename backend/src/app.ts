@@ -6,6 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from '@/config/env';
 import { swaggerSpec } from '@/config/swagger';
 import { errorHandler, notFoundHandler } from '@/middleware/error-handler';
+import { perfLogging } from '@/middleware/perf-logging';
 import routes from '@/routes';
 
 export function createApp() {
@@ -22,7 +23,7 @@ export function createApp() {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/docs.json', (_req, res) => res.status(200).json(swaggerSpec));
 
-  app.use('/api/v1', routes);
+  app.use('/api/v1', perfLogging, routes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

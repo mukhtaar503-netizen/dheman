@@ -330,6 +330,7 @@ model User {
 
   @@index([role])
   @@index([status])
+  @@index([department])
 }
 
 model RefreshToken {
@@ -502,6 +503,7 @@ model Customer {
   @@index([deletedAt])
   @@index([assignedTechnicianId])
   @@index([createdAt])
+  @@index([type])
 }
 
 model CustomerSiteAddress {

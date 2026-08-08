@@ -258,13 +258,13 @@ const PENDING_STATUSES: ServiceRequestStatus[] = [
 ];
 
 export async function getServiceRequestStatistics() {
-  const [total, pending, byStatus, byPriority, scheduledInspections, completedInspections, avgCostAgg, monthlyTrendRaw] = await Promise.all([
-    prisma.serviceRequest.count(),
-    prisma.serviceRequest.count({ where: { status: { in: PENDING_STATUSES } } }),
+  // total/pending are derived from byStatus, and both inspection counts come from one
+  // groupBy — four separate COUNT round trips collapsed into the two groupBys already
+  // needed for the byStatus/byPriority breakdowns.
+  const [byStatus, byPriority, inspectionsByStatus, avgCostAgg, monthlyTrendRaw] = await Promise.all([
     prisma.serviceRequest.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.serviceRequest.groupBy({ by: ['priority'], _count: { _all: true } }),
-    prisma.siteInspection.count({ where: { status: { in: [InspectionStatus.SCHEDULED, InspectionStatus.IN_PROGRESS] } } }),
-    prisma.siteInspection.count({ where: { status: InspectionStatus.COMPLETED } }),
+    prisma.siteInspection.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.siteInspection.aggregate({ _avg: { estimatedCost: true }, where: { estimatedCost: { not: null } } }),
     prisma.$queryRaw<{ month: string; count: bigint }[]>`
       SELECT to_char("createdAt", 'YYYY-MM') AS month, COUNT(*)::bigint AS count
@@ -274,6 +274,12 @@ export async function getServiceRequestStatistics() {
       ORDER BY month ASC
     `,
   ]);
+
+  const total = byStatus.reduce((sum, row) => sum + row._count._all, 0);
+  const pending = byStatus.filter((row) => PENDING_STATUSES.includes(row.status)).reduce((sum, row) => sum + row._count._all, 0);
+  const inspectionStatusCounts = Object.fromEntries(inspectionsByStatus.map((row) => [row.status, row._count._all]));
+  const scheduledInspections = (inspectionStatusCounts[InspectionStatus.SCHEDULED] ?? 0) + (inspectionStatusCounts[InspectionStatus.IN_PROGRESS] ?? 0);
+  const completedInspections = inspectionStatusCounts[InspectionStatus.COMPLETED] ?? 0;
 
   return {
     totalRequests: total,
