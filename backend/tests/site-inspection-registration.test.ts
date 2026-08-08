@@ -200,20 +200,25 @@ describe('Site Inspection Registration module (PHASE 06)', () => {
       .get(`/api/v1/inspections?search=${created.body.inspectionNo}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(bySearch.status).toBe(200);
-    expect(bySearch.body.some((i: { id: string }) => i.id === created.body.id)).toBe(true);
+    expect(bySearch.body.items.some((i: { id: string }) => i.id === created.body.id)).toBe(true);
 
     const byCustomer = await request(app).get(`/api/v1/inspections?customerId=${customer.id}`).set('Authorization', `Bearer ${adminToken}`);
     expect(byCustomer.status).toBe(200);
-    expect(byCustomer.body.every((i: { serviceRequest: { customerId: string } }) => i.serviceRequest.customerId === customer.id)).toBe(true);
+    expect(byCustomer.body.items.every((i: { serviceRequest: { customerId: string } }) => i.serviceRequest.customerId === customer.id)).toBe(true);
 
     const byDateRange = await request(app)
       .get('/api/v1/inspections?dateFrom=2026-09-09T00:00:00.000Z&dateTo=2026-09-11T00:00:00.000Z')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(byDateRange.status).toBe(200);
-    expect(byDateRange.body.some((i: { id: string }) => i.id === created.body.id)).toBe(true);
+    expect(byDateRange.body.items.some((i: { id: string }) => i.id === created.body.id)).toBe(true);
 
     const wrongStatus = await request(app).get('/api/v1/inspections?status=COMPLETED').set('Authorization', `Bearer ${adminToken}`);
-    expect(wrongStatus.body.some((i: { id: string }) => i.id === created.body.id)).toBe(false);
+    expect(wrongStatus.body.items.some((i: { id: string }) => i.id === created.body.id)).toBe(false);
+
+    const paginated = await request(app).get('/api/v1/inspections?page=1&pageSize=1').set('Authorization', `Bearer ${adminToken}`);
+    expect(paginated.status).toBe(200);
+    expect(paginated.body.items.length).toBeLessThanOrEqual(1);
+    expect(typeof paginated.body.total).toBe('number');
   });
 
   it('"Print Inspection Report": generates a downloadable PDF', async () => {

@@ -62,6 +62,7 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     completionRateAgg,
     satisfaction,
     outstandingAgg,
+    avgDurationAgg,
   ] = await Promise.all([
     prisma.customer.count({ where: { status: 'ACTIVE', createdAt: { lte: to } } }),
     prisma.customer.count({ where: { status: 'ACTIVE', createdAt: { lte: previousTo } } }),
@@ -79,6 +80,11 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     prisma.project.groupBy({ by: ['status'], _count: true }),
     getCustomerSatisfactionReport(),
     prisma.invoice.aggregate({ _sum: { balance: true }, where: { status: { in: [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE] } } }),
+    prisma.$queryRaw<{ avg_days: number | null }[]>`
+      SELECT AVG(EXTRACT(EPOCH FROM ("actualEndDate" - "startDate")) / 86400) AS avg_days
+      FROM "Project"
+      WHERE "actualEndDate" IS NOT NULL AND "startDate" IS NOT NULL
+    `,
   ]);
 
   const totalProjectsForRate = completionRateAgg.reduce((sum, g) => sum + g._count, 0);
@@ -87,11 +93,6 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     .reduce((sum, g) => sum + g._count, 0);
   const completionRatePercent = totalProjectsForRate > 0 ? round2((closedOrCompleted / totalProjectsForRate) * 100) : null;
 
-  const avgDurationAgg = await prisma.$queryRaw<{ avg_days: number | null }[]>`
-    SELECT AVG(EXTRACT(EPOCH FROM ("actualEndDate" - "startDate")) / 86400) AS avg_days
-    FROM "Project"
-    WHERE "actualEndDate" IS NOT NULL AND "startDate" IS NOT NULL
-  `;
   const averageProjectDurationDays = avgDurationAgg[0]?.avg_days != null ? round2(Number(avgDurationAgg[0].avg_days)) : null;
 
   const netProfit = round2(monthlyRevenue - monthlyExpenses);
@@ -120,20 +121,18 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
   return { role: user.role, range: { from, to }, cards, performance };
 }
 
-/** Revenue Analytics — Area Chart series. */
+/** Revenue Analytics — Area Chart series. Bucketed in SQL (date_trunc) rather than pulling every Payment row into Node. */
 export async function getRevenueSeries(query: RangeQuery, granularity: 'day' | 'month' = 'day') {
   const { from, to } = resolveDateRange(query.range, query.from, query.to);
-  const payments = await prisma.payment.findMany({ where: { paidAt: { gte: from, lte: to }, reversedAt: null } });
-
-  const buckets = new Map<string, number>();
-  for (const p of payments) {
-    const key = granularity === 'day' ? p.paidAt.toISOString().slice(0, 10) : p.paidAt.toISOString().slice(0, 7);
-    buckets.set(key, round2((buckets.get(key) ?? 0) + Number(p.amount)));
-  }
-
-  return Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([period, revenue]) => ({ period, revenue }));
+  const rows = await prisma.$queryRaw<{ period: Date; revenue: number }[]>`
+    SELECT date_trunc(${granularity}, "paidAt") AS period, SUM(amount)::float AS revenue
+    FROM "Payment"
+    WHERE "paidAt" >= ${from} AND "paidAt" <= ${to} AND "reversedAt" IS NULL
+    GROUP BY period
+    ORDER BY period ASC
+  `;
+  const sliceLen = granularity === 'day' ? 10 : 7;
+  return rows.map((r) => ({ period: r.period.toISOString().slice(0, sliceLen), revenue: round2(Number(r.revenue)) }));
 }
 
 /** Project Statistics — Bar Chart series, grouped by status. Technicians are scoped to their own assignments. */
@@ -149,35 +148,39 @@ export async function getProjectStats(user: AuthUser, query: RangeQuery) {
   return grouped.map((g) => ({ status: g.status, count: g._count }));
 }
 
-/** Expense Analysis — Line Chart series, one series per category. */
+/** Expense Analysis — Line Chart series, one series per category. Bucketed+grouped in SQL rather than pulling every Expense row into Node. */
 export async function getExpenseSeries(query: RangeQuery, granularity: 'day' | 'month' = 'day') {
   const { from, to } = resolveDateRange(query.range, query.from, query.to);
-  const expenses = await prisma.expense.findMany({ where: { status: ExpenseStatus.APPROVED, date: { gte: from, lte: to } } });
-
+  const rows = await prisma.$queryRaw<{ period: Date; category: string; total: number }[]>`
+    SELECT date_trunc(${granularity}, "date") AS period, category, SUM(amount)::float AS total
+    FROM "Expense"
+    WHERE status = 'APPROVED' AND "date" >= ${from} AND "date" <= ${to}
+    GROUP BY period, category
+    ORDER BY period ASC
+  `;
+  const sliceLen = granularity === 'day' ? 10 : 7;
   const buckets = new Map<string, Record<string, number>>();
-  for (const e of expenses) {
-    const key = granularity === 'day' ? e.date.toISOString().slice(0, 10) : e.date.toISOString().slice(0, 7);
+  for (const r of rows) {
+    const key = r.period.toISOString().slice(0, sliceLen);
     const bucket = buckets.get(key) ?? {};
-    bucket[e.category] = round2((bucket[e.category] ?? 0) + Number(e.amount));
+    bucket[r.category] = round2(Number(r.total));
     buckets.set(key, bucket);
   }
-
-  return Array.from(buckets.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([period, byCategory]) => ({ period, ...byCategory }));
+  return Array.from(buckets.entries()).map(([period, byCategory]) => ({ period, ...byCategory }));
 }
 
-/** Service Distribution — Pie Chart, Projects grouped by Service Category. */
+/** Service Distribution — Pie Chart, Projects grouped by Service Category. Grouped in SQL rather than pulling every Project row into Node. */
 export async function getServiceDistribution() {
-  const projects = await prisma.project.findMany({
-    select: { quotation: { select: { serviceRequest: { select: { serviceCategory: { select: { name: true } } } } } } },
-  });
-  const counts = new Map<string, number>();
-  for (const p of projects) {
-    const name = p.quotation.serviceRequest.serviceCategory.name;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-  return Array.from(counts.entries()).map(([name, value]) => ({ name, value }));
+  const rows = await prisma.$queryRaw<{ name: string; value: bigint }[]>`
+    SELECT sc.name AS name, COUNT(*)::bigint AS value
+    FROM "Project" p
+    JOIN "Quotation" q ON q.id = p."quotationId"
+    JOIN "ServiceRequest" sr ON sr.id = q."serviceRequestId"
+    JOIN "ServiceCategory" sc ON sc.id = sr."serviceCategoryId"
+    GROUP BY sc.name
+    ORDER BY value DESC
+  `;
+  return rows.map((r) => ({ name: r.name, value: Number(r.value) }));
 }
 
 /** Recent Activity — unified timeline merging logins, new customers, quotations, completed projects, payments. */

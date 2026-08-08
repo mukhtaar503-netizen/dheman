@@ -639,7 +639,7 @@ export default function SiteInspectionDetailPage() {
                 p.fileType === 'PHOTO' ? (
                   <a key={p.id} href={p.fileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.fileUrl} alt={p.caption ?? 'Inspection photo'} className="h-24 w-full object-cover" />
+                    <img src={p.fileUrl} alt={p.caption ?? 'Inspection photo'} loading="lazy" className="h-24 w-full object-cover" />
                   </a>
                 ) : (
                   <a

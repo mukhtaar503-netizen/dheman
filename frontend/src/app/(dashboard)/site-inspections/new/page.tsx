@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,9 +97,11 @@ export default function NewSiteInspectionPage() {
   // Internal notes
   const [internalNotes, setInternalNotes] = React.useState('');
 
+  const debouncedCustomerSearch = useDebouncedValue(customerSearch);
   const { data: customers } = useQuery({
-    queryKey: ['customers-picker', customerSearch],
-    queryFn: () => api.get<PaginatedResult<Customer>>(`/customers?page=1&pageSize=50${customerSearch ? `&search=${encodeURIComponent(customerSearch)}` : ''}`),
+    queryKey: ['customers-picker', debouncedCustomerSearch],
+    queryFn: () =>
+      api.get<PaginatedResult<Customer>>(`/customers?page=1&pageSize=50${debouncedCustomerSearch ? `&search=${encodeURIComponent(debouncedCustomerSearch)}` : ''}`),
   });
   const selectedCustomer = customers?.items.find((c) => c.id === customerId);
 

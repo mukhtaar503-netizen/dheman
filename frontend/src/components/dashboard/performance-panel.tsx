@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/dashboard-api';
-import { useDashboardFilterStore, buildRangeParams } from '@/stores/dashboard-filter-store';
+import { useDashboardRangeParams } from '@/stores/dashboard-filter-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProgressRing } from './gauges/progress-ring';
@@ -14,8 +14,7 @@ function clamp(n: number, min = 0, max = 100) {
 }
 
 export function PerformancePanel() {
-  const filters = useDashboardFilterStore();
-  const params = buildRangeParams(filters);
+  const params = useDashboardRangeParams();
   const { data, isLoading } = useQuery({ queryKey: ['dashboard-summary', params], queryFn: () => dashboardApi.summary(params) });
 
   const perf = data?.performance;

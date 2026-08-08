@@ -1,6 +1,6 @@
 import { ExpenseStatus, InvoiceStatus, ProjectStatus, QuotationStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { getTechnicianProductivity } from '@/modules/technicians/technicians.service';
+import { getTechnicianProductivityBatch } from '@/modules/technicians/technicians.service';
 
 function bucketKey(date: Date, granularity: 'day' | 'month') {
   return granularity === 'day' ? date.toISOString().slice(0, 10) : date.toISOString().slice(0, 7);
@@ -42,12 +42,11 @@ export async function getProjectProfitabilityReport(filters: { projectId?: strin
   });
 }
 
-/** FR-REP-03: Technician Productivity across the whole roster. */
+/** FR-REP-03: Technician Productivity across the whole roster. Batched — one TaskAssignment query for the whole roster, not one per technician. */
 export async function getTechnicianProductivityReport() {
   const technicians = await prisma.user.findMany({ where: { role: Role.TECHNICIAN }, select: { id: true, fullName: true } });
-  return Promise.all(
-    technicians.map(async (t) => ({ technicianId: t.id, fullName: t.fullName, ...(await getTechnicianProductivity(t.id)) })),
-  );
+  const productivityByTechnician = await getTechnicianProductivityBatch(technicians.map((t) => t.id));
+  return technicians.map((t) => ({ technicianId: t.id, fullName: t.fullName, ...productivityByTechnician.get(t.id)! }));
 }
 
 /** FR-REP-04: Outstanding Receivables, aged by days overdue. */

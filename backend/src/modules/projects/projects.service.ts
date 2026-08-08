@@ -52,7 +52,7 @@ export async function getProjectById(id: string) {
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
-      customer: true,
+      customer: { select: { id: true, fullName: true, companyName: true, email: true, phone: true } },
       quotation: { include: { lineItems: true } },
       projectManager: { select: { id: true, fullName: true, email: true } },
       supervisors: { include: { user: { select: { id: true, fullName: true } } } },

@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Download, Trash2, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -76,6 +77,7 @@ function CustomersList() {
   const router = useRouter();
   const initialSearch = useSearchParams().get('search') ?? '';
   const [search, setSearch] = React.useState(initialSearch);
+  const debouncedSearch = useDebouncedValue(search);
   const [type, setType] = React.useState<string>('all');
   const [status, setStatus] = React.useState<string>('all');
   const [sort, setSort] = React.useState('newest');
@@ -87,12 +89,16 @@ function CustomersList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const queryKey = ['customers', { search, type, status, sort, page }];
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const queryKey = ['customers', { search: debouncedSearch, type, status, sort, page }];
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (type !== 'all') params.set('type', type);
       if (status !== 'all') params.set('status', status);
       return api.get<PaginatedResult<Customer>>(`/customers?${params.toString()}`);
@@ -178,10 +184,7 @@ function CustomersList() {
             placeholder="Search name, phone, email, code…"
             className="h-8 w-56 text-xs"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
           <Select
             value={type}

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Download } from 'lucide-react';
 import { dashboardApi } from '@/lib/dashboard-api';
-import { useDashboardFilterStore, buildRangeParams } from '@/stores/dashboard-filter-store';
+import { useDashboardRangeParams } from '@/stores/dashboard-filter-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,8 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function ProjectsChart() {
-  const filters = useDashboardFilterStore();
-  const params = buildRangeParams(filters);
+  const params = useDashboardRangeParams();
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-projects', params],

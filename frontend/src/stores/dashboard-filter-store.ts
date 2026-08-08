@@ -45,3 +45,13 @@ export function buildRangeParams(state: Pick<DashboardFilterState, 'range' | 'cu
   }
   return params;
 }
+
+/** Same as buildRangeParams, but subscribes to only the 3 fields it needs — so widgets that only
+ * care about the date range (most dashboard charts/tiles) don't re-render when an unrelated
+ * filter (customerId, technicianId, etc.) changes. */
+export function useDashboardRangeParams() {
+  const range = useDashboardFilterStore((s) => s.range);
+  const customFrom = useDashboardFilterStore((s) => s.customFrom);
+  const customTo = useDashboardFilterStore((s) => s.customTo);
+  return buildRangeParams({ range, customFrom, customTo });
+}

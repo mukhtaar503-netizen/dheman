@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -128,6 +129,7 @@ function StatisticsRow() {
 function ServicesList() {
   const router = useRouter();
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [category, setCategory] = React.useState<string>('all');
   const [status, setStatus] = React.useState<string>('all');
   const [sort, setSort] = React.useState('newest');
@@ -138,11 +140,15 @@ function ServicesList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['services', { search, category, status, sort, page }],
+    queryKey: ['services', { search: debouncedSearch, category, status, sort, page }],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (category !== 'all') params.set('category', category);
       if (status !== 'all') params.set('status', status);
       return api.get<PaginatedResult<Service>>(`/services?${params.toString()}`);
@@ -178,10 +184,7 @@ function ServicesList() {
             placeholder="Search services…"
             className="h-8 w-52 text-xs"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
           <Select
             value={category}

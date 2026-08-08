@@ -3,13 +3,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Wallet } from 'lucide-react';
 import { dashboardApi } from '@/lib/dashboard-api';
-import { useDashboardFilterStore, buildRangeParams } from '@/stores/dashboard-filter-store';
+import { useDashboardRangeParams } from '@/stores/dashboard-filter-store';
 import { BRAND } from '@/lib/brand';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function HeroValueTile() {
-  const filters = useDashboardFilterStore();
-  const params = buildRangeParams(filters);
+  const params = useDashboardRangeParams();
   const { data, isLoading } = useQuery({ queryKey: ['dashboard-summary', params], queryFn: () => dashboardApi.summary(params) });
 
   const revenue = data?.cards.find((c) => c.key === 'monthlyRevenue')?.value ?? 0;

@@ -64,9 +64,7 @@ export async function getTechnicianHistory(userId: string) {
   });
 }
 
-/** FR-TECH-06: on-time completion rate as a simple productivity proxy. */
-export async function getTechnicianProductivity(userId: string) {
-  const assignments = await prisma.taskAssignment.findMany({ where: { technicianId: userId }, include: { task: true } });
+function summarizeProductivity(assignments: { task: { status: TaskStatus; dueDate: Date | null; updatedAt: Date } }[]) {
   const total = assignments.length;
   const completed = assignments.filter((a) => a.task.status === TaskStatus.VERIFIED).length;
   const onTime = assignments.filter((a) => a.task.status === TaskStatus.VERIFIED && a.task.dueDate && a.task.updatedAt <= a.task.dueDate).length;
@@ -75,6 +73,24 @@ export async function getTechnicianProductivity(userId: string) {
     completedTasks: completed,
     onTimeRate: completed > 0 ? Math.round((onTime / completed) * 10000) / 100 : null,
   };
+}
+
+/** FR-TECH-06: on-time completion rate as a simple productivity proxy. */
+export async function getTechnicianProductivity(userId: string) {
+  const assignments = await prisma.taskAssignment.findMany({ where: { technicianId: userId }, include: { task: true } });
+  return summarizeProductivity(assignments);
+}
+
+/** Same as getTechnicianProductivity but for the whole roster in one query — avoids an N+1 loop in reports. */
+export async function getTechnicianProductivityBatch(userIds: string[]) {
+  const assignments = await prisma.taskAssignment.findMany({ where: { technicianId: { in: userIds } }, include: { task: true } });
+  const byTechnician = new Map<string, typeof assignments>();
+  for (const a of assignments) {
+    const list = byTechnician.get(a.technicianId) ?? [];
+    list.push(a);
+    byTechnician.set(a.technicianId, list);
+  }
+  return new Map(userIds.map((id) => [id, summarizeProductivity(byTechnician.get(id) ?? [])]));
 }
 
 export async function requestLeave(actor: AuthUser, input: { startDate: Date; endDate: Date; reason?: string }) {

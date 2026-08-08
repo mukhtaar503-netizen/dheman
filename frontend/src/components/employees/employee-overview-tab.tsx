@@ -70,7 +70,7 @@ export function EmployeeOverviewTab({ employee }: { employee: EmployeeDetail }) 
           <div className="relative">
             {employee.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={employee.photoUrl} alt={employee.fullName} className="h-20 w-20 rounded-full object-cover" />
+              <img src={employee.photoUrl} alt={employee.fullName} loading="lazy" className="h-20 w-20 rounded-full object-cover" />
             ) : (
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted text-xl font-semibold text-muted-foreground">
                 {initials(employee.fullName)}

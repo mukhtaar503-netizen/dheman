@@ -20,7 +20,7 @@ interface ServiceCategory {
 }
 
 export function ServicesChart() {
-  const { serviceCategoryId } = useDashboardFilterStore();
+  const serviceCategoryId = useDashboardFilterStore((s) => s.serviceCategoryId);
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-services'],
     queryFn: () => dashboardApi.services(),

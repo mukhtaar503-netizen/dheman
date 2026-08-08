@@ -1,14 +1,33 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { UserPlus, FolderPlus, ClipboardPlus, FileText, Receipt, Wrench, Wallet, ReceiptText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { CreateCustomerDialog } from './create-customer-dialog';
-import { CreateServiceRequestDialog } from './create-service-request-dialog';
-import { RecordPaymentDialog } from './record-payment-dialog';
-import { AddExpenseDialog } from './add-expense-dialog';
+
+// These modal forms are opened rarely from the dashboard — dynamic-importing them keeps their
+// code (and react-hook-form usage) out of the main dashboard bundle until actually clicked.
+// Each `loading` fallback renders the exact same trigger button the real component would (with
+// its icon/label baked in, since next/dynamic's loading component doesn't receive the wrapped
+// component's props) so the button never flickers/disappears while its chunk loads.
+const CreateCustomerDialog = dynamic(() => import('./create-customer-dialog').then((m) => m.CreateCustomerDialog), {
+  ssr: false,
+  loading: () => <ActionButton icon={UserPlus} label="Create Customer" />,
+});
+const CreateServiceRequestDialog = dynamic(() => import('./create-service-request-dialog').then((m) => m.CreateServiceRequestDialog), {
+  ssr: false,
+  loading: () => <ActionButton icon={ClipboardPlus} label="Create Service Request" />,
+});
+const RecordPaymentDialog = dynamic(() => import('./record-payment-dialog').then((m) => m.RecordPaymentDialog), {
+  ssr: false,
+  loading: () => <ActionButton icon={Wallet} label="Record Payment" />,
+});
+const AddExpenseDialog = dynamic(() => import('./add-expense-dialog').then((m) => m.AddExpenseDialog), {
+  ssr: false,
+  loading: () => <ActionButton icon={ReceiptText} label="Add Expense" />,
+});
 
 const actionButtonClasses = cn(
   'flex h-auto flex-col items-center gap-2 rounded-md border border-border py-4 text-xs transition-colors hover:bg-muted',

@@ -21,15 +21,35 @@ export async function getUserPermissionKeys(userId: string): Promise<Set<string>
   return keys;
 }
 
+// requirePermission() calls userHasPermission() on every protected request (some routes chain
+// two or more), each doing a 3-table join with no caching. Since role/permission assignments
+// change rarely (admin actions), a short-TTL cache with explicit invalidation on every RBAC
+// mutation (below) cuts that DB round-trip for the common case without risking stale access:
+// a permission revocation still takes effect immediately via the explicit clear, and the TTL
+// only matters as a fallback bound on staleness, not the primary correctness mechanism.
+const PERMISSION_CACHE_TTL_MS = 60_000;
+const permissionCache = new Map<string, { result: boolean; expiresAt: number }>();
+
+export function clearPermissionCache() {
+  permissionCache.clear();
+}
+
 export async function userHasPermission(userId: string, permissionKeys: string[]): Promise<boolean> {
   if (permissionKeys.length === 0) return true;
+
+  const cacheKey = `${userId}:${[...permissionKeys].sort().join(',')}`;
+  const cached = permissionCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
+
   const count = await prisma.userRole.count({
     where: {
       userId,
       role: { rolePermissions: { some: { permission: { key: { in: permissionKeys } } } } },
     },
   });
-  return count > 0;
+  const result = count > 0;
+  permissionCache.set(cacheKey, { result, expiresAt: Date.now() + PERMISSION_CACHE_TTL_MS });
+  return result;
 }
 
 /** Ensures a user's UserRole rows reflect their current primary `role` enum field — called on create/role-change. */
@@ -60,6 +80,7 @@ export async function syncPrimaryUserRole(userId: string, role: Role) {
   if (staleSystemRoles.length > 0) {
     await prisma.userRole.deleteMany({ where: { id: { in: staleSystemRoles.map((ur) => ur.id) } } });
   }
+  clearPermissionCache();
 }
 
 export async function listRoles() {
@@ -98,6 +119,7 @@ export async function setRolePermissions(actor: AuthUser, roleId: string, permis
   ]);
 
   await recordAudit({ actorId: actor.id, action: 'SET_PERMISSIONS', entityType: 'AppRole', entityId: roleId, after: { permissionKeys } });
+  clearPermissionCache();
   return listRoles();
 }
 
@@ -115,12 +137,14 @@ export async function assignRoleToUser(actor: AuthUser, userId: string, roleId: 
     create: { userId, roleId },
   });
   await recordAudit({ actorId: actor.id, action: 'ASSIGN_ROLE', entityType: 'User', entityId: userId, after: { roleId } });
+  clearPermissionCache();
   return userRole;
 }
 
 export async function removeRoleFromUser(actor: AuthUser, userId: string, roleId: string) {
   await prisma.userRole.deleteMany({ where: { userId, roleId } });
   await recordAudit({ actorId: actor.id, action: 'REMOVE_ROLE', entityType: 'User', entityId: userId, before: { roleId } });
+  clearPermissionCache();
 }
 
 export async function getUserRoles(userId: string) {

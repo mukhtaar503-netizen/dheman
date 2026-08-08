@@ -10,7 +10,9 @@ export async function listInspections(req: Request, res: Response) {
 }
 
 export async function listMyInspections(req: Request, res: Response) {
-  res.status(200).json(await service.listInspections({ inspectorId: req.user!.id }));
+  const page = Number(req.query.page) || 1;
+  const pageSize = Number(req.query.pageSize) || 20;
+  res.status(200).json(await service.listInspections({ inspectorId: req.user!.id, page, pageSize }));
 }
 
 export async function listCompletedInspections(_req: Request, res: Response) {

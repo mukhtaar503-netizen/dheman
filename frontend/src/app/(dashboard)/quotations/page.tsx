@@ -8,6 +8,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { downloadFile } from '@/lib/download';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -98,18 +99,23 @@ export default function QuotationsPage() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = React.useState<string>('all');
   const [sort, setSort] = React.useState('newest');
   const [page, setPage] = React.useState(1);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
   const pageSize = 20;
 
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['quotations', { isCustomer, isInspector, search, status, sort, page }],
+    queryKey: ['quotations', { isCustomer, isInspector, search: debouncedSearch, status, sort, page }],
     queryFn: (): Promise<Quotation[] | PaginatedResult<Quotation>> => {
       if (isInspector) return api.get<Quotation[]>('/quotations/inspector/me');
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (status !== 'all') params.set('status', status);
       const path = isCustomer ? `/quotations/me?${params.toString()}` : `/quotations?${params.toString()}`;
       return api.get<PaginatedResult<Quotation>>(path);
@@ -170,10 +176,7 @@ export default function QuotationsPage() {
                 placeholder="Search quotations…"
                 className="h-8 w-52 text-xs"
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setSearch(e.target.value)}
               />
               <Select
                 value={status}

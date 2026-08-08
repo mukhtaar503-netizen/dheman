@@ -7,6 +7,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,7 @@ export default function ServiceRequestsPage() {
   const isStaff = !isCustomer;
 
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = React.useState<string>('all');
   const [priority, setPriority] = React.useState<string>('all');
   const [sort, setSort] = React.useState('newest');
@@ -104,11 +106,15 @@ export default function ServiceRequestsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['service-requests', { isCustomer, search, status, priority, sort, page }],
+    queryKey: ['service-requests', { isCustomer, search: debouncedSearch, status, priority, sort, page }],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (status !== 'all') params.set('status', status);
       if (priority !== 'all') params.set('priority', priority);
       const path = isCustomer ? `/service-requests/me?${params.toString()}` : `/service-requests?${params.toString()}`;
@@ -160,10 +166,7 @@ export default function ServiceRequestsPage() {
               placeholder="Search requests…"
               className="h-8 w-52 text-xs"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
             <Select
               value={status}

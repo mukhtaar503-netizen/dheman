@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -70,17 +71,22 @@ function StatisticsRow() {
 function EmployeesList() {
   const router = useRouter();
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [role, setRole] = React.useState<string>('all');
   const [status, setStatus] = React.useState<string>('all');
   const [sort, setSort] = React.useState('newest');
   const [page, setPage] = React.useState(1);
   const pageSize = 20;
 
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['employees', { search, role, status, sort, page }],
+    queryKey: ['employees', { search: debouncedSearch, role, status, sort, page }],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort });
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (role !== 'all') params.set('role', role);
       if (status !== 'all') params.set('status', status);
       return api.get<PaginatedResult<Employee>>(`/users?${params.toString()}`);
@@ -98,10 +104,7 @@ function EmployeesList() {
             placeholder="Search name, email, phone, Employee ID…"
             className="h-8 w-64 text-xs"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
           />
           <Select
             value={role}

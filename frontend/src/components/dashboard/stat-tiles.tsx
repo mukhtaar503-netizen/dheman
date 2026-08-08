@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Wrench, FolderKanban, ClipboardList, TrendingUp } from 'lucide-react';
 import { dashboardApi } from '@/lib/dashboard-api';
-import { useDashboardFilterStore, buildRangeParams } from '@/stores/dashboard-filter-store';
+import { useDashboardRangeParams } from '@/stores/dashboard-filter-store';
 import { BRAND } from '@/lib/brand';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -15,8 +15,7 @@ const TILES = [
 ] as const;
 
 export function StatTiles() {
-  const filters = useDashboardFilterStore();
-  const params = buildRangeParams(filters);
+  const params = useDashboardRangeParams();
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-summary', params],

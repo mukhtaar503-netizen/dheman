@@ -43,19 +43,19 @@ export async function listTasks(filters: { projectId?: string; technicianId?: st
   });
 }
 
-/** FR-TASK-03, FR-SCHED-02: block double-booking a Technician on overlapping windows unless overridden. */
-async function assertNoSchedulingConflict(technicianId: string, dueDate: Date | null, override: boolean) {
-  if (!dueDate || override) return;
-  const sameDay = await prisma.task.findFirst({
+/** FR-TASK-03, FR-SCHED-02: block double-booking any Technician on overlapping windows unless overridden — one batched query for the whole list, not one per technician. */
+async function assertNoSchedulingConflict(technicianIds: string[], dueDate: Date | null, override: boolean) {
+  if (!dueDate || override || technicianIds.length === 0) return;
+  const conflict = await prisma.task.findFirst({
     where: {
       dueDate,
-      assignments: { some: { technicianId } },
+      assignments: { some: { technicianId: { in: technicianIds } } },
       status: { notIn: [TaskStatus.COMPLETED, TaskStatus.VERIFIED] },
     },
   });
-  if (sameDay) {
+  if (conflict) {
     throw HttpError.conflict('Technician already has a Task scheduled for this date; pass override=true to force it', {
-      conflictingTaskId: sameDay.id,
+      conflictingTaskId: conflict.id,
     });
   }
 }
@@ -63,9 +63,7 @@ async function assertNoSchedulingConflict(technicianId: string, dueDate: Date | 
 export async function assignTechnicians(actor: AuthUser, id: string, technicianIds: string[], override = false) {
   const task = await getTaskById(id);
 
-  for (const technicianId of technicianIds) {
-    await assertNoSchedulingConflict(technicianId, task.dueDate, override);
-  }
+  await assertNoSchedulingConflict(technicianIds, task.dueDate, override);
 
   const assignments = await prisma.$transaction(async (tx) => {
     await tx.taskAssignment.deleteMany({ where: { taskId: id } });

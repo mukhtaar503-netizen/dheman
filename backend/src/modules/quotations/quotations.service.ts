@@ -216,12 +216,12 @@ export async function getQuotationById(id: string) {
     where: { id },
     include: {
       lineItems: true,
-      customer: true,
+      customer: { select: { id: true, fullName: true, companyName: true, email: true, phone: true, userId: true } },
       serviceRequest: { include: { serviceCategory: true, service: true } },
       siteInspection: true,
       createdBy: { select: { id: true, fullName: true } },
-      auditLogs: { orderBy: { createdAt: 'desc' } },
-      approvals: { orderBy: { createdAt: 'desc' } },
+      auditLogs: { orderBy: { createdAt: 'desc' }, take: 50 },
+      approvals: { orderBy: { createdAt: 'desc' }, take: 50 },
     },
   });
   if (!quotation) throw HttpError.notFound('Quotation not found');

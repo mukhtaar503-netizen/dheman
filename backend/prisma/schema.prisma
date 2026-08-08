@@ -329,6 +329,7 @@ model User {
   userRoles                 UserRole[]
 
   @@index([role])
+  @@index([status])
 }
 
 model RefreshToken {
@@ -675,6 +676,7 @@ model ServiceRequest {
   @@index([status])
   @@index([priority])
   @@index([serviceId])
+  @@index([customerId])
 }
 
 model ServiceRequestAttachment {
@@ -737,6 +739,7 @@ model SiteInspection {
   quotations     Quotation[]
 
   @@index([status])
+  @@index([inspectorId])
 }
 
 model InspectionChecklistItem {
@@ -826,6 +829,8 @@ model Quotation {
 
   @@index([status])
   @@index([siteInspectionId])
+  @@index([customerId])
+  @@index([serviceRequestId])
 }
 
 model QuotationLineItem {
@@ -912,6 +917,8 @@ model Project {
   feedback         CustomerFeedback[]
 
   @@index([status])
+  @@index([customerId])
+  @@index([projectManagerId])
 }
 
 model ProjectSupervisor {
@@ -1006,6 +1013,7 @@ model TaskAssignment {
   technician User @relation(fields: [technicianId], references: [id])
 
   @@unique([taskId, technicianId])
+  @@index([technicianId])
 }
 
 model TaskPhoto {
@@ -1093,6 +1101,7 @@ model Expense {
   approvedBy  User?    @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
 
   @@index([status])
+  @@index([date])
 }
 
 model Invoice {
@@ -1118,6 +1127,8 @@ model Invoice {
   payments  Payment[]
 
   @@index([status])
+  @@index([customerId])
+  @@index([projectId])
 }
 
 model InvoiceLineItem {
@@ -1147,6 +1158,9 @@ model Payment {
   invoice    Invoice  @relation(fields: [invoiceId], references: [id])
   customer   Customer @relation(fields: [customerId], references: [id])
   recordedBy User?    @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([customerId])
+  @@index([paidAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────

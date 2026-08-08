@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/hooks/use-auth';
 import { GlobalFilterBar } from '@/components/dashboard/global-filter-bar';
 import { StatTiles } from '@/components/dashboard/stat-tiles';
@@ -7,15 +8,32 @@ import { UpcomingPanel } from '@/components/dashboard/upcoming-panel';
 import { CompanyOverviewCard } from '@/components/dashboard/company-overview-card';
 import { HeroValueTile } from '@/components/dashboard/hero-value-tile';
 import { PerformancePanel } from '@/components/dashboard/performance-panel';
-import { RevenueChart } from '@/components/dashboard/charts/revenue-chart';
-import { ProjectsChart } from '@/components/dashboard/charts/projects-chart';
-import { ExpensesChart } from '@/components/dashboard/charts/expenses-chart';
-import { ServicesChart } from '@/components/dashboard/charts/services-chart';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { RecentCustomersTable } from '@/components/dashboard/recent-customers-table';
 import { RecentPaymentsTable } from '@/components/dashboard/recent-payments-table';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// recharts is a sizeable dependency — dynamic-importing these keeps it out of the dashboard's
+// initial JS bundle, deferring it until the charts themselves are about to render.
+const chartLoading = () => <Skeleton className="h-80 w-full" />;
+const RevenueChart = dynamic(() => import('@/components/dashboard/charts/revenue-chart').then((m) => m.RevenueChart), {
+  ssr: false,
+  loading: chartLoading,
+});
+const ProjectsChart = dynamic(() => import('@/components/dashboard/charts/projects-chart').then((m) => m.ProjectsChart), {
+  ssr: false,
+  loading: chartLoading,
+});
+const ExpensesChart = dynamic(() => import('@/components/dashboard/charts/expenses-chart').then((m) => m.ExpensesChart), {
+  ssr: false,
+  loading: chartLoading,
+});
+const ServicesChart = dynamic(() => import('@/components/dashboard/charts/services-chart').then((m) => m.ServicesChart), {
+  ssr: false,
+  loading: chartLoading,
+});
 
 // Mirrors backend RBAC: /dashboard/revenue|expenses|activity|customers|payments are
 // restricted to Super Admin / Admin / Project Manager / Accountant (see dashboard.routes.ts).

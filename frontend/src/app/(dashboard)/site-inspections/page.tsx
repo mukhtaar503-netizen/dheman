@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
+import { Pagination } from '@/components/ui/pagination';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,23 +60,30 @@ export default function SiteInspectionsPage() {
   const queryClient = useQueryClient();
   const isInspector = user?.role === 'SITE_INSPECTOR';
   const [search, setSearch] = React.useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = React.useState<string>('all');
   const [inspectorId, setInspectorId] = React.useState<string>('all');
   const [dateFrom, setDateFrom] = React.useState('');
   const [dateTo, setDateTo] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const pageSize = 20;
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, status, inspectorId, dateFrom, dateTo]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['site-inspections', { isInspector, status, search, inspectorId, dateFrom, dateTo }],
+    queryKey: ['site-inspections', { isInspector, status, search: debouncedSearch, inspectorId, dateFrom, dateTo, page }],
     queryFn: () => {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
       if (status !== 'all') params.set('status', status);
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (inspectorId !== 'all') params.set('inspectorId', inspectorId);
       if (dateFrom) params.set('dateFrom', new Date(dateFrom).toISOString());
       if (dateTo) params.set('dateTo', new Date(dateTo).toISOString());
-      const path = isInspector ? '/inspections/me' : `/inspections${params.toString() ? `?${params.toString()}` : ''}`;
-      return api.get<InspectionRow[]>(path);
+      const path = isInspector ? `/inspections/me?${params.toString()}` : `/inspections?${params.toString()}`;
+      return api.get<PaginatedResult<InspectionRow>>(path);
     },
     enabled: !!user,
   });
@@ -111,7 +120,7 @@ export default function SiteInspectionsPage() {
     }
   }
 
-  const items = data ?? [];
+  const items = data?.items ?? [];
 
   return (
     <div className="space-y-6">
@@ -127,7 +136,7 @@ export default function SiteInspectionsPage() {
       <Card>
         <CardHeader className="space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>{data ? `${items.length} inspections` : 'Inspections'}</CardTitle>
+            <CardTitle>{data ? `${data.total} inspections` : 'Inspections'}</CardTitle>
           </div>
           {!isInspector && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -230,6 +239,7 @@ export default function SiteInspectionsPage() {
               </TableBody>
             </Table>
           )}
+          {data && data.total > pageSize && <Pagination page={page} pageSize={pageSize} total={data.total} onPageChange={setPage} />}
         </CardContent>
       </Card>
 

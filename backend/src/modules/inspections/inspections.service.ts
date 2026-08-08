@@ -178,6 +178,8 @@ interface ListInspectionsFilters {
   search?: string;
   dateFrom?: Date;
   dateTo?: Date;
+  page?: number;
+  pageSize?: number;
 }
 
 export async function listInspections(filters: ListInspectionsFilters) {
@@ -201,14 +203,24 @@ export async function listInspections(filters: ListInspectionsFilters) {
       : {}),
   };
 
-  return prisma.siteInspection.findMany({
-    where,
-    include: {
-      serviceRequest: { include: { customer: true, serviceCategory: true, service: true } },
-      inspector: { select: { id: true, fullName: true } },
-    },
-    orderBy: { scheduledAt: 'asc' },
-  });
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 20;
+
+  const [items, total] = await Promise.all([
+    prisma.siteInspection.findMany({
+      where,
+      include: {
+        serviceRequest: { include: { customer: true, serviceCategory: true, service: true } },
+        inspector: { select: { id: true, fullName: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.siteInspection.count({ where }),
+  ]);
+
+  return { items, total, page, pageSize };
 }
 
 /**
@@ -221,6 +233,7 @@ export async function listCompletedInspections() {
     where: { status: InspectionStatus.COMPLETED },
     include: { serviceRequest: { include: { customer: true, serviceCategory: true, service: true } } },
     orderBy: { submittedAt: 'desc' },
+    take: 200, // dropdown picker — bounded defensively, most-recently-completed first
   });
 
   return inspections.map((i) => ({
