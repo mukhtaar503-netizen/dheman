@@ -14,7 +14,7 @@ export function QuotationLogo({ className }: QuotationLogoProps) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/logo/dheeman-mark.png"
-      alt="Dheeman Decoration and Furniture Solution"
+      alt="Dheeman Decoration And Furniture"
       loading="eager"
       className={cn('h-14 w-auto object-contain', className)}
     />

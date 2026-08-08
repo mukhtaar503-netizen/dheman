@@ -24,7 +24,7 @@ export function QuotationHeader() {
         <div className="flex items-start gap-4">
           <QuotationLogo />
           <div className="min-w-0">
-            <p className="text-lg font-bold leading-tight">{settings?.name ?? 'Dheeman Decoration and Furniture Solution'}</p>
+            <p className="text-lg font-bold leading-tight">{settings?.name ?? 'Dheeman Decoration And Furniture'}</p>
             {settings?.tagline && <p className="text-sm font-medium italic text-[#F97316]">{settings.tagline}</p>}
           </div>
         </div>

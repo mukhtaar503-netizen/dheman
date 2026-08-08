@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { recordAudit } from '@/utils/audit';
 import { AuthUser } from '@/middleware/auth';
 
-const DEFAULTS = { name: 'My Company' };
+const DEFAULTS = { name: 'Dheeman Decoration And Furniture' };
 
 /** There is always exactly one CompanySettings row; it is created lazily on first read. */
 export async function getSettings() {
