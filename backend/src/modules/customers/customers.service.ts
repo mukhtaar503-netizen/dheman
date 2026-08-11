@@ -448,7 +448,20 @@ function csvEscape(value: unknown): string {
 
 export async function exportCustomersCsv(filters: Omit<ListCustomersFilters, 'page' | 'pageSize'>) {
   const where = await buildListWhere({ ...filters, page: 1, pageSize: 1 });
-  const customers = await prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' } });
+  const customers = await prisma.customer.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      customerCode: true,
+      fullName: true,
+      companyName: true,
+      type: true,
+      status: true,
+      phone: true,
+      email: true,
+      createdAt: true,
+    },
+  });
 
   const headers = ['Customer Code', 'Full Name', 'Company', 'Type', 'Status', 'Phone', 'Email', 'City', 'Registered At'];
   const rows = customers.map((c) => [c.customerCode, c.fullName, c.companyName, c.type, c.status, c.phone, c.email, '', c.createdAt.toISOString()]);
