@@ -19,11 +19,27 @@ function required(name: string, fallback?: string): string {
  * against a direct (non-pooled) Postgres connection too — so normalizing it here
  * removes an entire class of "did you remember the connection string flag" bugs.
  */
+/**
+ * Also pins `connection_limit` (Prisma's own pool, on top of Supabase's pooler) and
+ * `pool_timeout`. Left unset, Prisma defaults connection_limit to `num_physical_cpus * 2 + 1`
+ * — on a small container that's often just 3-5, which is too few for a long-running Express
+ * server handling concurrent requests (each in-flight query holds a pool connection for its
+ * duration) and causes queries to queue behind each other waiting for a free connection,
+ * inflating observed latency without any single query being slow. CONNECTION_LIMIT/
+ * POOL_TIMEOUT_SECONDS let ops tune this per-deployment without a code change; the defaults
+ * here are reasonable for a single small-to-medium app instance against Supabase's pooler.
+ */
 function ensurePgBouncerFlag(url: string): string {
   try {
     const parsed = new URL(url);
     if (!parsed.searchParams.has('pgbouncer')) {
       parsed.searchParams.set('pgbouncer', 'true');
+    }
+    if (!parsed.searchParams.has('connection_limit')) {
+      parsed.searchParams.set('connection_limit', process.env.CONNECTION_LIMIT ?? '10');
+    }
+    if (!parsed.searchParams.has('pool_timeout')) {
+      parsed.searchParams.set('pool_timeout', process.env.POOL_TIMEOUT_SECONDS ?? '15');
     }
     return parsed.toString();
   } catch {

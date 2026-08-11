@@ -206,12 +206,27 @@ export async function listInspections(filters: ListInspectionsFilters) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
 
+  // The list page (site-inspections/page.tsx) only ever reads inspectionNo/status/scheduledAt,
+  // inspector.fullName, and a handful of serviceRequest sub-fields — select exactly those
+  // instead of pulling full Customer/Service/ServiceCategory rows (25+ columns each) per row.
   const [items, total] = await Promise.all([
     prisma.siteInspection.findMany({
       where,
-      include: {
-        serviceRequest: { include: { customer: true, serviceCategory: true, service: true } },
+      select: {
+        id: true,
+        inspectionNo: true,
+        status: true,
+        scheduledAt: true,
         inspector: { select: { id: true, fullName: true } },
+        serviceRequest: {
+          select: {
+            referenceNo: true,
+            title: true,
+            customer: { select: { fullName: true } },
+            serviceCategory: { select: { name: true } },
+            service: { select: { serviceName: true } },
+          },
+        },
       },
       orderBy: { scheduledAt: 'asc' },
       skip: (page - 1) * pageSize,
