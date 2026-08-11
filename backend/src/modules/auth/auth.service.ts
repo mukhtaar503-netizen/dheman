@@ -107,16 +107,40 @@ export async function login(input: LoginInput, context?: SessionContext) {
 
 export async function refreshTokens(refreshToken: string, context?: SessionContext) {
   const tokenHash = hashToken(refreshToken);
-  const stored = await prisma.refreshToken.findUnique({ where: { tokenHash }, include: { user: true } });
+  const stored = await prisma.refreshToken.findUnique({
+    where: { tokenHash },
+    select: {
+      id: true,
+      revokedAt: true,
+      expiresAt: true,
+      user: { select: { id: true, role: true, email: true } },
+    },
+  });
 
   if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
     throw HttpError.unauthorized('Invalid or expired refresh token');
   }
 
-  // Rotation: revoke the used token, issue a fresh pair.
-  await prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+  const accessToken = signAccessToken({ sub: stored.user.id, role: stored.user.role, email: stored.user.email });
+  const newRefreshToken = generateRefreshToken();
 
-  return issueTokenPair(stored.user.id, stored.user.role, stored.user.email, context);
+  // Rotation: revoke the used token and issue the fresh one in a single round trip
+  // instead of two sequential awaits — each round trip to a remote DB adds a full
+  // network RTT, and this endpoint is on the hot path (called on every access-token expiry).
+  await prisma.$transaction([
+    prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } }),
+    prisma.refreshToken.create({
+      data: {
+        userId: stored.user.id,
+        tokenHash: hashToken(newRefreshToken),
+        expiresAt: new Date(Date.now() + env.jwt.refreshExpiresInMs),
+        userAgent: context?.userAgent,
+        ipAddress: context?.ipAddress,
+      },
+    }),
+  ]);
+
+  return { accessToken, refreshToken: newRefreshToken };
 }
 
 export async function logout(refreshToken: string) {

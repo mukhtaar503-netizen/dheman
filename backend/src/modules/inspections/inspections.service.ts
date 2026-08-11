@@ -222,6 +222,7 @@ export async function listInspections(filters: ListInspectionsFilters) {
           select: {
             referenceNo: true,
             title: true,
+            customerId: true,
             customer: { select: { fullName: true } },
             serviceCategory: { select: { name: true } },
             service: { select: { serviceName: true } },

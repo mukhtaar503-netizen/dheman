@@ -33,7 +33,24 @@ export class ApiError extends Error {
   }
 }
 
+// Refresh tokens are single-use (rotated server-side on every /auth/refresh call), so if
+// several requests hit a 401 at once (e.g. multiple widgets fetching in parallel right as the
+// access token expires), each one calling refreshAccessToken independently would race: the
+// first call rotates the stored token, and every other concurrent call would then present the
+// now-revoked token and get "Invalid or expired refresh token" — forcing an unwanted logout even
+// though the session is fine. Sharing one in-flight refresh call across concurrent callers
+// eliminates both the race and the duplicate network requests.
+let inFlightRefresh: Promise<string | null> | null = null;
+
 async function refreshAccessToken(): Promise<string | null> {
+  if (inFlightRefresh) return inFlightRefresh;
+  inFlightRefresh = doRefreshAccessToken().finally(() => {
+    inFlightRefresh = null;
+  });
+  return inFlightRefresh;
+}
+
+async function doRefreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
