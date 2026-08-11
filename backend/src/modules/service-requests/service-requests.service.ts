@@ -127,10 +127,25 @@ export async function listServiceRequests(filters: ListServiceRequestsFilters) {
         ? { preferredDate: 'asc' }
         : { createdAt: 'desc' };
 
+  // The list page (service-requests/page.tsx) only reads referenceNo, customer.fullName,
+  // service.serviceName, serviceCategory.name, priority, status, and preferredDate — it never
+  // touches `inspection`, so the previous `include: { inspection: true }` was pulling a full
+  // SiteInspection row (30+ columns) per service request for data the list never renders.
   const [items, total] = await Promise.all([
     prisma.serviceRequest.findMany({
       where,
-      include: { customer: true, serviceCategory: true, service: true, inspection: true },
+      select: {
+        id: true,
+        referenceNo: true,
+        title: true,
+        priority: true,
+        status: true,
+        preferredDate: true,
+        createdAt: true,
+        customer: { select: { id: true, fullName: true } },
+        serviceCategory: { select: { id: true, name: true } },
+        service: { select: { id: true, serviceName: true } },
+      },
       orderBy,
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,

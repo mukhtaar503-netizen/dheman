@@ -270,10 +270,28 @@ export async function listQuotations(filters: ListQuotationsFilters) {
           ? { total: 'asc' }
           : { createdAt: 'desc' };
 
+  // The list page (quotations/page.tsx) only reads quotationNo, customer.fullName,
+  // serviceRequest.{service.serviceName, serviceCategory.name}, total, status, and createdAt —
+  // it never touches lineItems, so the previous `include: { lineItems: true }` was pulling
+  // every line item row (description/qty/price per row) for data the list never renders.
   const [items, total] = await Promise.all([
     prisma.quotation.findMany({
       where,
-      include: { lineItems: true, customer: true, serviceRequest: { include: { serviceCategory: true, service: true } } },
+      select: {
+        id: true,
+        quotationNo: true,
+        status: true,
+        total: true,
+        createdAt: true,
+        customer: { select: { id: true, fullName: true } },
+        serviceRequest: {
+          select: {
+            id: true,
+            serviceCategory: { select: { id: true, name: true } },
+            service: { select: { id: true, serviceName: true } },
+          },
+        },
+      },
       orderBy,
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
