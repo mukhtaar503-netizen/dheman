@@ -33,11 +33,33 @@ export function perfLogging(req: Request, res: Response, next: NextFunction) {
   requestContextStorage.run(context, next);
 }
 
-function findDuplicates(queries: { model: string | undefined; action: string }[]): string[] {
+/** Sorts object keys recursively so two calls built with the same shape but different
+ *  property-insertion order still fingerprint identically. */
+function stableStringify(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Flags queries that are genuinely wasted work — same model, same action, AND the same
+ * arguments (where/select/by/etc), fired more than once in a single request. Fingerprinting
+ * on model+action alone (the previous behavior) produced false positives for things like
+ * `Customer.groupBy({by:['status']})` and `Customer.groupBy({by:['type']})` in the same
+ * Promise.all: two different queries that happen to share a model and action name, not
+ * duplicated work.
+ */
+function findDuplicates(queries: { model: string | undefined; action: string; args: unknown }[]): string[] {
   const counts = new Map<string, number>();
   for (const q of queries) {
-    const key = `${q.model ?? '?'}.${q.action}`;
+    const key = `${q.model ?? '?'}.${q.action}::${stableStringify(q.args)}`;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
-  return [...counts.entries()].filter(([, n]) => n > 1).map(([key, n]) => `${key} x${n}`);
+  return [...counts.entries()]
+    .filter(([, n]) => n > 1)
+    .map(([key, n]) => `${key.split('::')[0]} x${n}`);
 }

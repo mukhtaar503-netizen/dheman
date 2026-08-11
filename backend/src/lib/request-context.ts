@@ -4,6 +4,7 @@ interface QueryLogEntry {
   model: string | undefined;
   action: string;
   durationMs: number;
+  args: unknown;
 }
 
 interface RequestContext {
@@ -19,8 +20,8 @@ export function createRequestContext(method: string, path: string): RequestConte
 }
 
 /** Called from the Prisma query-timing extension to attribute a query to the in-flight request. */
-export function recordQuery(model: string | undefined, action: string, durationMs: number) {
-  requestContextStorage.getStore()?.queries.push({ model, action, durationMs });
+export function recordQuery(model: string | undefined, action: string, durationMs: number, args: unknown) {
+  requestContextStorage.getStore()?.queries.push({ model, action, durationMs, args });
 }
 
 export function getRequestQueries(): QueryLogEntry[] {

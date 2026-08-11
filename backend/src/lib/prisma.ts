@@ -28,7 +28,7 @@ function createPrismaClient(): PrismaClient {
       const start = performance.now();
       const result = await next(params);
       const durationMs = performance.now() - start;
-      recordQuery(params.model, params.action, durationMs);
+      recordQuery(params.model, params.action, durationMs, params.args);
       if (durationMs >= SLOW_QUERY_THRESHOLD_MS) {
         // eslint-disable-next-line no-console
         console.warn(`[prisma] SLOW ${durationMs.toFixed(1)}ms  ${params.model ?? '?'}.${params.action}`);
