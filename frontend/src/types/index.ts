@@ -298,7 +298,7 @@ export interface InspectionMeasurement {
   length?: string | number | null;
   width?: string | number | null;
   height?: string | number | null;
-  unit: string;
+  unit?: string | null;
   quantity?: number | null;
   area?: string | number | null;
   notes?: string | null;
@@ -322,7 +322,8 @@ export interface MaterialEstimateRow {
 
 export interface LaborEstimateRow {
   task: string;
-  estimatedHours: number;
+  workers?: number;
+  days?: number;
   cost: number;
 }
 

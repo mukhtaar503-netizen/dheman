@@ -9,7 +9,7 @@ import { createSignedUploadUrl } from '@/lib/storage';
 import { generateInspectionPdf } from './inspections.pdf.service';
 
 type MaterialEstimateRow = { material: string; quantity: string; unit?: string; estimatedCost?: number; remarks?: string };
-type LaborEstimateRow = { task: string; estimatedHours: number; cost: number };
+type LaborEstimateRow = { task: string; workers?: number; days?: number; estimatedHours?: number; cost: number };
 
 /** Fields from the Site Inspection Registration form, shared by create and full update. */
 interface RegistrationFields {

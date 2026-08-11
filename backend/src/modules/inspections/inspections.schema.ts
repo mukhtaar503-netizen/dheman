@@ -34,7 +34,18 @@ const materialEstimateSchema = z.array(
     remarks: z.string().optional(),
   }),
 );
-const laborEstimateSchema = z.array(z.object({ task: z.string(), estimatedHours: z.number().min(0), cost: z.number().min(0) }));
+// `estimatedHours` is kept optional (rather than removed) so historical rows saved before the
+// Work Type/Workers/Days redesign keep validating — the UI no longer collects it, but the field
+// staying valid-if-present means old data round-trips through save without being rejected.
+const laborEstimateSchema = z.array(
+  z.object({
+    task: z.string(),
+    workers: z.number().int().min(0).optional(),
+    days: z.number().min(0).optional(),
+    estimatedHours: z.number().min(0).optional(),
+    cost: z.number().min(0),
+  }),
+);
 
 export const scheduleInspectionSchema = z.object({
   body: z.object({
