@@ -99,12 +99,8 @@ describe('Site Inspection Registration module (PHASE 06)', () => {
         inspectorId,
         scheduledAt: '2026-09-05T09:00:00Z',
         status: 'PENDING',
-        landmark: 'Near Mall',
         city: 'Dubai',
         region: 'Dubai',
-        inspectionPurpose: 'Initial assessment',
-        customerRequirements: 'Modern finish',
-        existingSiteCondition: 'Bare shell',
         estimatedWorkers: 4,
         estimatedWorkingDays: 5,
         specialSkillsRequired: 'Electrician',
@@ -116,7 +112,7 @@ describe('Site Inspection Registration module (PHASE 06)', () => {
         materialEstimate: [{ material: 'Aluminum Profile', quantity: '30', unit: 'meter', remarks: 'Standard grade' }],
       });
     expect(created.status).toBe(201);
-    expect(created.body.landmark).toBe('Near Mall');
+    expect(created.body.city).toBe('Dubai');
     expect(created.body.estimatedWorkers).toBe(4);
     expect(created.body.vehicleRequired).toBe('Pickup truck');
 
@@ -138,10 +134,10 @@ describe('Site Inspection Registration module (PHASE 06)', () => {
     const savedDraft = await request(app)
       .patch(`/api/v1/inspections/${created.body.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ inspectionPurpose: 'Updated purpose' });
+      .send({ city: 'Dubai' });
     expect(savedDraft.status).toBe(200);
     expect(savedDraft.body.status).toBe('PENDING');
-    expect(savedDraft.body.inspectionPurpose).toBe('Updated purpose');
+    expect(savedDraft.body.city).toBe('Dubai');
 
     const blockedSubmit = await request(app)
       .patch(`/api/v1/inspections/${created.body.id}`)

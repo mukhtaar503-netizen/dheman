@@ -254,7 +254,6 @@ describe('Service Requests & Site Inspections module (PHASE 06)', () => {
         .patch(`/api/v1/inspections/${inspectionId}/details`)
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({
-          technicalNotes: 'Access via side gate',
           measurements: [{ label: 'Front wall', width: 5, height: 3, unit: 'm', area: 15 }],
           materialEstimate: [{ material: 'Aluminum Profile', quantity: '20 meters', estimatedCost: 300 }],
           laborEstimate: [{ task: 'Installation', estimatedHours: 8, cost: 200 }],
@@ -263,7 +262,6 @@ describe('Service Requests & Site Inspections module (PHASE 06)', () => {
         });
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('IN_PROGRESS');
-      expect(res.body.technicalNotes).toBe('Access via side gate');
       expect(res.body.measurements).toHaveLength(1);
       expect(res.body.materialEstimate).toEqual([{ material: 'Aluminum Profile', quantity: '20 meters', estimatedCost: 300 }]);
     });
@@ -282,7 +280,6 @@ describe('Service Requests & Site Inspections module (PHASE 06)', () => {
         .patch(`/api/v1/inspections/${inspectionId}/complete`)
         .set('Authorization', `Bearer ${inspectorToken}`)
         .send({
-          technicalNotes: 'Final assessment complete',
           estimatedCost: 500,
           estimatedDuration: '2 days',
         });
@@ -298,7 +295,7 @@ describe('Service Requests & Site Inspections module (PHASE 06)', () => {
       const res = await request(app)
         .patch(`/api/v1/inspections/${inspectionId}/details`)
         .set('Authorization', `Bearer ${inspectorToken}`)
-        .send({ technicalNotes: 'Too late' });
+        .send({ estimatedDuration: 'Too late' });
       expect(res.status).toBe(400);
     });
   });

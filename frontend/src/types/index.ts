@@ -335,17 +335,9 @@ export interface SiteInspection {
   scheduledAt: string;
   status: InspectionStatus;
   siteAddress?: string | null;
-  landmark?: string | null;
   city?: string | null;
   region?: string | null;
-  latitude?: string | number | null;
-  longitude?: string | number | null;
-  inspectionPurpose?: string | null;
-  customerRequirements?: string | null;
-  existingSiteCondition?: string | null;
   accessNotes?: string | null;
-  technicalNotes?: string | null;
-  internalNotes?: string | null;
   materialEstimate?: MaterialEstimateRow[] | null;
   laborEstimate?: LaborEstimateRow[] | null;
   materialCost?: string | number | null;

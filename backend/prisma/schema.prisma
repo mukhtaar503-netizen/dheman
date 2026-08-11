@@ -700,17 +700,9 @@ model SiteInspection {
   scheduledAt           DateTime
   status                InspectionStatus @default(PENDING)
   siteAddress           String?
-  landmark              String?
   city                  String?
   region                String?
-  latitude              Decimal?         @db.Decimal(9, 6)
-  longitude             Decimal?         @db.Decimal(9, 6)
-  inspectionPurpose     String?
-  customerRequirements  String?
-  existingSiteCondition String?
   accessNotes           String?
-  technicalNotes        String?
-  internalNotes         String?
   materialEstimate      Json?
   laborEstimate         Json?
   materialCost          Decimal?         @db.Decimal(12, 2)

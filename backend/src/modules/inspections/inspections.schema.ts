@@ -3,15 +3,8 @@ import { AttachmentType } from '@prisma/client';
 
 const registrationFieldsSchema = {
   siteAddress: z.string().optional(),
-  landmark: z.string().optional(),
   city: z.string().optional(),
   region: z.string().optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  inspectionPurpose: z.string().optional(),
-  customerRequirements: z.string().optional(),
-  existingSiteCondition: z.string().optional(),
-  internalNotes: z.string().optional(),
   estimatedWorkers: z.number().int().min(0).optional(),
   estimatedWorkingDays: z.number().int().min(0).optional(),
   specialSkillsRequired: z.string().optional(),
@@ -19,7 +12,6 @@ const registrationFieldsSchema = {
   transportDistance: z.number().min(0).optional(),
   accessibility: z.string().optional(),
   transportationNotes: z.string().optional(),
-  technicalNotes: z.string().optional(),
 };
 
 const measurementSchema = z.object({

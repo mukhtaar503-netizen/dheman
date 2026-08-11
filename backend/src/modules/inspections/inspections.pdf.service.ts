@@ -68,35 +68,10 @@ export async function generateInspectionPdf(inspection: InspectionForPdf): Promi
     }
     doc.text(`Service Type: ${inspection.serviceRequest.service?.serviceName ?? inspection.serviceRequest.serviceCategory.name}`, PAGE_LEFT, py);
     py += 14;
-    const siteLine = [inspection.siteAddress, inspection.landmark, inspection.city, inspection.region].filter(Boolean).join(', ');
+    const siteLine = [inspection.siteAddress, inspection.city, inspection.region].filter(Boolean).join(', ');
     if (siteLine) {
       doc.text(`Site Address: ${siteLine}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
       py += 14;
-    }
-    if (inspection.latitude != null && inspection.longitude != null) {
-      doc.text(`GPS: ${Number(inspection.latitude).toFixed(6)}, ${Number(inspection.longitude).toFixed(6)}`, PAGE_LEFT, py);
-      py += 14;
-    }
-
-    // ── Inspection details ──────────────────────────────────────────────────
-    if (inspection.inspectionPurpose || inspection.customerRequirements || inspection.existingSiteCondition) {
-      py += 6;
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Inspection Details', PAGE_LEFT, py);
-      doc.fillColor('#000000');
-      py += 18;
-      doc.font('Helvetica').fontSize(10);
-      if (inspection.inspectionPurpose) {
-        doc.text(`Purpose: ${inspection.inspectionPurpose}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14 * Math.ceil(inspection.inspectionPurpose.length / 100);
-      }
-      if (inspection.customerRequirements) {
-        doc.text(`Customer Requirements: ${inspection.customerRequirements}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14 * Math.ceil(inspection.customerRequirements.length / 100);
-      }
-      if (inspection.existingSiteCondition) {
-        doc.text(`Existing Site Condition: ${inspection.existingSiteCondition}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14 * Math.ceil(inspection.existingSiteCondition.length / 100);
-      }
     }
 
     // ── Measurements ─────────────────────────────────────────────────────────
@@ -215,26 +190,6 @@ export async function generateInspectionPdf(inspection: InspectionForPdf): Promi
         py += 14;
       }
       py += 6;
-    }
-
-    // ── Technical / internal notes ───────────────────────────────────────────
-    if (inspection.technicalNotes || inspection.internalNotes) {
-      if (py > 680) {
-        doc.addPage();
-        py = 50;
-      }
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Notes', PAGE_LEFT, py);
-      doc.fillColor('#000000');
-      py += 18;
-      doc.font('Helvetica').fontSize(9.5);
-      if (inspection.technicalNotes) {
-        doc.text(`Technical Notes: ${inspection.technicalNotes}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 13 * Math.ceil(inspection.technicalNotes.length / 110) + 4;
-      }
-      if (inspection.internalNotes) {
-        doc.text(`Internal Notes: ${inspection.internalNotes}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 13 * Math.ceil(inspection.internalNotes.length / 110) + 4;
-      }
     }
 
     doc.end();

@@ -57,9 +57,6 @@ export default function NewSiteInspectionPage() {
   // Inspection details
   const [inspectionDate, setInspectionDate] = React.useState(todayLocalDate());
   const [inspectorId, setInspectorId] = React.useState('');
-  const [inspectionPurpose, setInspectionPurpose] = React.useState('');
-  const [customerRequirements, setCustomerRequirements] = React.useState('');
-  const [technicalNotes, setTechnicalNotes] = React.useState('');
 
   const debouncedCustomerSearch = useDebouncedValue(customerSearch);
   const { data: customers } = useQuery({
@@ -118,9 +115,6 @@ export default function NewSiteInspectionPage() {
         status,
         siteAddress: siteAddress || undefined,
         city: city || undefined,
-        inspectionPurpose: inspectionPurpose || undefined,
-        customerRequirements: customerRequirements || undefined,
-        technicalNotes: technicalNotes || undefined,
       });
       return inspection;
     },
@@ -351,23 +345,11 @@ export default function NewSiteInspectionPage() {
               </Select>
             </div>
           </section>
-          <div className="space-y-1">
-            <Label htmlFor="inspectionPurpose">Inspection Purpose</Label>
-            <Textarea id="inspectionPurpose" rows={2} value={inspectionPurpose} onChange={(e) => setInspectionPurpose(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="customerRequirements">Customer Requirements</Label>
-            <Textarea id="customerRequirements" rows={2} value={customerRequirements} onChange={(e) => setCustomerRequirements(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="technicalNotes">Technical Notes</Label>
-            <Textarea id="technicalNotes" rows={2} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} />
-          </div>
         </CardContent>
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Measurements, materials, labor, transportation, internal notes, and photos/videos/documents can be added from the inspection details page once it&apos;s registered.
+        Measurements, materials, labor, transportation, and photos/videos/documents can be added from the inspection details page once it&apos;s registered.
       </p>
 
       <div className="flex flex-col items-end gap-2 pb-8">

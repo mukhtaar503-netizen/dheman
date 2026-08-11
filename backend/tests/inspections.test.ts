@@ -52,7 +52,7 @@ describe('Site Inspection workflow (PHASE 06 FINAL)', () => {
     return { customer: customer.body, serviceRequest: serviceRequest.body };
   }
 
-  it('persists siteAddress/latitude/longitude through schedule -> details -> complete', async () => {
+  it('persists siteAddress through schedule -> details -> complete', async () => {
     const { serviceRequest } = await createCustomerAndRequest();
 
     const created = await request(app)
@@ -63,8 +63,6 @@ describe('Site Inspection workflow (PHASE 06 FINAL)', () => {
         inspectorId,
         scheduledAt: '2026-08-05T09:00:00Z',
         siteAddress: 'Site A, Sheikh Zayed Road',
-        latitude: 25.2048,
-        longitude: 55.2708,
       });
     expect(created.status).toBe(201);
     expect(created.body.siteAddress).toBe('Site A, Sheikh Zayed Road');
@@ -73,7 +71,7 @@ describe('Site Inspection workflow (PHASE 06 FINAL)', () => {
     const details = await request(app)
       .patch(`/api/v1/inspections/${created.body.id}/details`)
       .set('Authorization', `Bearer ${inspectorToken}`)
-      .send({ siteAddress: 'Site A (updated), Sheikh Zayed Road', technicalNotes: 'Accessible, power on-site' });
+      .send({ siteAddress: 'Site A (updated), Sheikh Zayed Road' });
     expect(details.status).toBe(200);
     expect(details.body.siteAddress).toBe('Site A (updated), Sheikh Zayed Road');
     expect(details.body.status).toBe('IN_PROGRESS');
@@ -85,8 +83,6 @@ describe('Site Inspection workflow (PHASE 06 FINAL)', () => {
     expect(completed.status).toBe(200);
     expect(completed.body.status).toBe('COMPLETED');
     expect(completed.body.siteAddress).toBe('Site A (updated), Sheikh Zayed Road');
-    expect(Number(completed.body.latitude)).toBeCloseTo(25.2048, 4);
-    expect(Number(completed.body.longitude)).toBeCloseTo(55.2708, 4);
 
     const srAfter = await request(app).get(`/api/v1/service-requests/${serviceRequest.id}`).set('Authorization', `Bearer ${adminToken}`);
     expect(srAfter.body.status).toBe('INSPECTION_COMPLETED');

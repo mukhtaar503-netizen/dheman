@@ -14,15 +14,8 @@ type LaborEstimateRow = { task: string; estimatedHours: number; cost: number };
 /** Fields from the Site Inspection Registration form, shared by create and full update. */
 interface RegistrationFields {
   siteAddress?: string;
-  landmark?: string;
   city?: string;
   region?: string;
-  latitude?: number;
-  longitude?: number;
-  inspectionPurpose?: string;
-  customerRequirements?: string;
-  existingSiteCondition?: string;
-  internalNotes?: string;
   estimatedWorkers?: number;
   estimatedWorkingDays?: number;
   specialSkillsRequired?: string;
@@ -30,7 +23,6 @@ interface RegistrationFields {
   transportDistance?: number;
   accessibility?: string;
   transportationNotes?: string;
-  technicalNotes?: string;
 }
 
 function round2(n: number) {
@@ -107,15 +99,8 @@ export async function scheduleInspection(
         scheduledAt: input.scheduledAt,
         status,
         siteAddress: input.siteAddress,
-        landmark: input.landmark,
         city: input.city,
         region: input.region,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        inspectionPurpose: input.inspectionPurpose,
-        customerRequirements: input.customerRequirements,
-        existingSiteCondition: input.existingSiteCondition,
-        internalNotes: input.internalNotes,
         estimatedWorkers: input.estimatedWorkers,
         estimatedWorkingDays: input.estimatedWorkingDays,
         specialSkillsRequired: input.specialSkillsRequired,
@@ -295,15 +280,8 @@ export async function reschedule(
   if (input.scheduledAt) data.scheduledAt = input.scheduledAt;
   if (input.inspectorId) data.inspector = { connect: { id: input.inspectorId } };
   if (input.siteAddress !== undefined) data.siteAddress = input.siteAddress;
-  if (input.landmark !== undefined) data.landmark = input.landmark;
   if (input.city !== undefined) data.city = input.city;
   if (input.region !== undefined) data.region = input.region;
-  if (input.latitude !== undefined) data.latitude = input.latitude;
-  if (input.longitude !== undefined) data.longitude = input.longitude;
-  if (input.inspectionPurpose !== undefined) data.inspectionPurpose = input.inspectionPurpose;
-  if (input.customerRequirements !== undefined) data.customerRequirements = input.customerRequirements;
-  if (input.existingSiteCondition !== undefined) data.existingSiteCondition = input.existingSiteCondition;
-  if (input.internalNotes !== undefined) data.internalNotes = input.internalNotes;
   if (input.estimatedWorkers !== undefined) data.estimatedWorkers = input.estimatedWorkers;
   if (input.estimatedWorkingDays !== undefined) data.estimatedWorkingDays = input.estimatedWorkingDays;
   if (input.specialSkillsRequired !== undefined) data.specialSkillsRequired = input.specialSkillsRequired;
@@ -402,17 +380,9 @@ export async function updateInspectionDetails(actor: AuthUser, id: string, input
       data: {
         status: InspectionStatus.IN_PROGRESS,
         accessNotes: input.accessNotes,
-        technicalNotes: input.technicalNotes,
-        internalNotes: input.internalNotes,
         siteAddress: input.siteAddress,
-        landmark: input.landmark,
         city: input.city,
         region: input.region,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        inspectionPurpose: input.inspectionPurpose,
-        customerRequirements: input.customerRequirements,
-        existingSiteCondition: input.existingSiteCondition,
         estimatedWorkers: input.estimatedWorkers,
         estimatedWorkingDays: input.estimatedWorkingDays,
         specialSkillsRequired: input.specialSkillsRequired,
@@ -491,17 +461,9 @@ export async function submitInspection(
       data: {
         status: InspectionStatus.COMPLETED,
         accessNotes: input.accessNotes,
-        technicalNotes: input.technicalNotes,
-        internalNotes: input.internalNotes,
         siteAddress: input.siteAddress,
-        landmark: input.landmark,
         city: input.city,
         region: input.region,
-        latitude: input.latitude,
-        longitude: input.longitude,
-        inspectionPurpose: input.inspectionPurpose,
-        customerRequirements: input.customerRequirements,
-        existingSiteCondition: input.existingSiteCondition,
         estimatedWorkers: input.estimatedWorkers,
         estimatedWorkingDays: input.estimatedWorkingDays,
         specialSkillsRequired: input.specialSkillsRequired,

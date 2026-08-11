@@ -477,7 +477,6 @@ async function main() {
       scheduledAt: new Date(Date.now() - 3 * 24 * 60 * 60_000),
       status: 'COMPLETED',
       siteAddress: 'Ahmed Furniture Showroom, Sheikh Zayed Road, Dubai',
-      technicalNotes: 'Site is accessible; power available on-site. Ready for installation.',
       materialEstimate: demoMaterialEstimate,
       laborEstimate: demoLaborEstimate,
       materialCost: 900,

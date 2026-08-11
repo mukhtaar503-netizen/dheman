@@ -79,22 +79,14 @@ export default function SiteInspectionDetailPage() {
     queryFn: () => api.get<InspectionDetail>(`/inspections/${id}`),
   });
 
-  const [technicalNotes, setTechnicalNotes] = React.useState('');
-  const [internalNotes, setInternalNotes] = React.useState('');
   const [estimatedCost, setEstimatedCost] = React.useState('');
   const [estimatedDuration, setEstimatedDuration] = React.useState('');
   const [measurements, setMeasurements] = React.useState<Partial<InspectionMeasurement>[]>([]);
   const [materials, setMaterials] = React.useState<MaterialEstimateRow[]>([]);
   const [labor, setLabor] = React.useState<LaborEstimateRow[]>([]);
   const [siteAddress, setSiteAddress] = React.useState('');
-  const [landmark, setLandmark] = React.useState('');
   const [city, setCity] = React.useState('');
   const [region, setRegion] = React.useState('');
-  const [latitude, setLatitude] = React.useState('');
-  const [longitude, setLongitude] = React.useState('');
-  const [inspectionPurpose, setInspectionPurpose] = React.useState('');
-  const [customerRequirements, setCustomerRequirements] = React.useState('');
-  const [existingSiteCondition, setExistingSiteCondition] = React.useState('');
   const [transportationCost, setTransportationCost] = React.useState('');
   const [estimatedWorkers, setEstimatedWorkers] = React.useState('');
   const [estimatedWorkingDays, setEstimatedWorkingDays] = React.useState('');
@@ -110,22 +102,14 @@ export default function SiteInspectionDetailPage() {
 
   React.useEffect(() => {
     if (!inspection) return;
-    setTechnicalNotes(inspection.technicalNotes ?? '');
-    setInternalNotes(inspection.internalNotes ?? '');
     setEstimatedCost(inspection.estimatedCost != null ? String(inspection.estimatedCost) : '');
     setEstimatedDuration(inspection.estimatedDuration ?? '');
     setMeasurements(inspection.measurements ?? []);
     setMaterials(inspection.materialEstimate ?? []);
     setLabor(inspection.laborEstimate ?? []);
     setSiteAddress(inspection.siteAddress ?? '');
-    setLandmark(inspection.landmark ?? '');
     setCity(inspection.city ?? '');
     setRegion(inspection.region ?? '');
-    setLatitude(inspection.latitude != null ? String(inspection.latitude) : '');
-    setLongitude(inspection.longitude != null ? String(inspection.longitude) : '');
-    setInspectionPurpose(inspection.inspectionPurpose ?? '');
-    setCustomerRequirements(inspection.customerRequirements ?? '');
-    setExistingSiteCondition(inspection.existingSiteCondition ?? '');
     setTransportationCost(inspection.transportationCost != null ? String(inspection.transportationCost) : '');
     setEstimatedWorkers(inspection.estimatedWorkers != null ? String(inspection.estimatedWorkers) : '');
     setEstimatedWorkingDays(inspection.estimatedWorkingDays != null ? String(inspection.estimatedWorkingDays) : '');
@@ -148,17 +132,9 @@ export default function SiteInspectionDetailPage() {
 
   function buildPayload() {
     return {
-      technicalNotes: technicalNotes || undefined,
-      internalNotes: internalNotes || undefined,
       siteAddress: siteAddress || undefined,
-      landmark: landmark || undefined,
       city: city || undefined,
       region: region || undefined,
-      latitude: latitude ? Number(latitude) : undefined,
-      longitude: longitude ? Number(longitude) : undefined,
-      inspectionPurpose: inspectionPurpose || undefined,
-      customerRequirements: customerRequirements || undefined,
-      existingSiteCondition: existingSiteCondition || undefined,
       measurements: measurements
         .filter((m) => m.label)
         .map((m) => ({
@@ -375,8 +351,8 @@ export default function SiteInspectionDetailPage() {
 
       <Card>
         <SectionHeader title="Site" />
-        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-5">
-          <div className="space-y-1 sm:col-span-5">
+        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-3">
+          <div className="space-y-1 sm:col-span-3">
             <Label htmlFor="siteAddress" className="text-xs">
               Address
             </Label>
@@ -390,12 +366,6 @@ export default function SiteInspectionDetailPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="landmark" className="text-xs">
-              Landmark
-            </Label>
-            <Input id="landmark" className="h-8 text-sm" disabled={isLocked} value={landmark} onChange={(e) => setLandmark(e.target.value)} />
-          </div>
-          <div className="space-y-1">
             <Label htmlFor="city" className="text-xs">
               City
             </Label>
@@ -406,83 +376,6 @@ export default function SiteInspectionDetailPage() {
               Region
             </Label>
             <Input id="region" className="h-8 text-sm" disabled={isLocked} value={region} onChange={(e) => setRegion(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="latitude" className="text-xs">
-              Latitude
-            </Label>
-            <Input id="latitude" type="number" className="h-8 text-sm" disabled={isLocked} value={latitude} onChange={(e) => setLatitude(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="longitude" className="text-xs">
-              Longitude
-            </Label>
-            <Input
-              id="longitude"
-              type="number"
-              className="h-8 text-sm"
-              disabled={isLocked}
-              value={longitude}
-              onChange={(e) => setLongitude(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <SectionHeader title="Inspection Notes" />
-        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="inspectionPurpose" className="text-xs">
-              Purpose
-            </Label>
-            <Textarea id="inspectionPurpose" rows={2} className="text-sm" disabled={isLocked} value={inspectionPurpose} onChange={(e) => setInspectionPurpose(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="customerRequirements" className="text-xs">
-              Customer Requirements
-            </Label>
-            <Textarea
-              id="customerRequirements"
-              rows={2}
-              className="text-sm"
-              disabled={isLocked}
-              value={customerRequirements}
-              onChange={(e) => setCustomerRequirements(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="existingSiteCondition" className="text-xs">
-              Site Condition
-            </Label>
-            <Textarea
-              id="existingSiteCondition"
-              rows={2}
-              className="text-sm"
-              disabled={isLocked}
-              value={existingSiteCondition}
-              onChange={(e) => setExistingSiteCondition(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="technicalNotes" className="text-xs">
-              Technical Notes
-            </Label>
-            <Textarea id="technicalNotes" rows={2} className="text-sm" disabled={isLocked} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="internalNotes" className="text-xs">
-              Internal Notes
-            </Label>
-            <Textarea
-              id="internalNotes"
-              rows={2}
-              className="text-sm"
-              disabled={isLocked}
-              value={internalNotes}
-              onChange={(e) => setInternalNotes(e.target.value)}
-              placeholder="Engineer / inspector remarks"
-            />
           </div>
         </CardContent>
       </Card>
