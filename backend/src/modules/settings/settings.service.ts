@@ -2,7 +2,11 @@ import { prisma } from '@/lib/prisma';
 import { recordAudit } from '@/utils/audit';
 import { AuthUser } from '@/middleware/auth';
 
-const DEFAULTS = { name: 'Dheeman Decoration And Furniture' };
+const DEFAULTS = {
+  name: 'Dheeman Decoration and Furniture Solution',
+  tagline: 'Aluminum • Furniture • Gypsum & PVC Installation Services',
+  phone: '063-3731036 / 063-3231553',
+};
 
 /** There is always exactly one CompanySettings row; it is created lazily on first read. */
 export async function getSettings() {

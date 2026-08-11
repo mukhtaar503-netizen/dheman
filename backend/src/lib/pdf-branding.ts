@@ -50,42 +50,112 @@ export interface CompanySettingsForPdf {
   taxRegistrationNo: string | null;
 }
 
-/** Draws the logo + company identity block + orange accent rule. Returns the Y position to continue content from. */
+/** A small rotated rounded bar with two circular ends — a minimal handset silhouette. */
+function drawPhoneIcon(doc: PDFKit.PDFDocument, cx: number, cy: number, size: number, color: string): void {
+  doc.save();
+  doc.translate(cx, cy);
+  doc.rotate(-45);
+  doc.roundedRect(-size / 2, -size / 6, size, size / 3, size / 6).fill(color);
+  doc.restore();
+  doc.circle(cx - size * 0.42, cy - size * 0.42, size * 0.16).fill(color);
+  doc.circle(cx + size * 0.42, cy + size * 0.42, size * 0.16).fill(color);
+}
+
+/** A short line — small diamond — short line, centered on cx. Purely decorative. */
+function drawDecorativeDivider(doc: PDFKit.PDFDocument, cx: number, cy: number, color: string): void {
+  const halfSpan = 30;
+  const gap = 6;
+  const diamond = 5;
+  doc.strokeColor(color).lineWidth(1);
+  doc.moveTo(cx - halfSpan - gap, cy).lineTo(cx - gap, cy).stroke();
+  doc.moveTo(cx + gap, cy).lineTo(cx + halfSpan + gap, cy).stroke();
+  doc.save();
+  doc.translate(cx, cy);
+  doc.rotate(45);
+  doc.rect(-diamond / 2, -diamond / 2, diamond, diamond).fill(color);
+  doc.restore();
+  doc.lineWidth(1);
+}
+
+/**
+ * Draws the letterhead: identical logo marks flanking a centered company identity block
+ * (name / subtitle / decorative divider / phone), then a full-width orange rule beneath the
+ * whole block. Both logos are the plain diamond mark only — no name/tagline text is drawn
+ * next to them, that identity text lives solely in the centered block. Returns the Y position
+ * to continue page content from.
+ */
 export function drawBrandHeader(doc: PDFKit.PDFDocument, settings: CompanySettingsForPdf, logoBuffer: Buffer | null): number {
-  const logoWidth = 60;
+  const centerX = (PAGE_LEFT + PAGE_RIGHT) / 2;
+  const nameWidth = 300;
+  const subtitleWidth = 380;
+  const blockTop = 28;
+
+  const nameText = settings.name.toUpperCase();
+  doc.font('Times-Bold').fontSize(15);
+  const nameHeight = doc.heightOfString(nameText, { width: nameWidth, align: 'center' });
+
+  doc.font('Helvetica').fontSize(8.5);
+  const subtitleHeight = settings.tagline ? doc.heightOfString(settings.tagline, { width: subtitleWidth, align: 'center' }) : 0;
+
+  const phoneText = settings.phone ?? null;
+  const phoneIconSize = 8;
+  doc.font('Helvetica-Bold').fontSize(10);
+  const phoneTextWidth = phoneText ? doc.widthOfString(phoneText) : 0;
+  const phoneHeight = phoneText ? doc.heightOfString(phoneText, { width: phoneTextWidth + 1 }) : 0;
+
+  const gapNameToSubtitle = 5;
+  const gapSubtitleToDivider = 9;
+  const dividerHeight = 5;
+  const gapDividerToPhone = 9;
+
+  const blockHeight =
+    nameHeight +
+    (settings.tagline ? gapNameToSubtitle + subtitleHeight : 0) +
+    gapSubtitleToDivider +
+    dividerHeight +
+    (phoneText ? gapDividerToPhone + phoneHeight : 0);
+
+  // Logos: identical size, vertically centered against the whole identity block.
+  const logoWidth = 44;
+  const logoHeight = logoWidth * BUNDLED_LOGO_ASPECT;
+  const logoY = blockTop + (blockHeight - logoHeight) / 2;
   if (logoBuffer) {
     try {
-      doc.image(logoBuffer, PAGE_LEFT, 42, { width: logoWidth });
+      doc.image(logoBuffer, PAGE_LEFT, logoY, { width: logoWidth });
+      doc.image(logoBuffer, PAGE_RIGHT - logoWidth, logoY, { width: logoWidth });
     } catch {
       // Corrupt image data — skip rather than abort the whole document.
     }
   }
-  const headerX = logoBuffer ? PAGE_LEFT + logoWidth + 15 : PAGE_LEFT;
-  doc.fontSize(17).font('Helvetica-Bold').fillColor(NAVY).text(settings.name, headerX, 44, { width: PAGE_RIGHT - headerX });
-  let headerY = 44 + 20;
+
+  // Centered identity block.
+  let y = blockTop;
+  doc.font('Times-Bold').fontSize(15).fillColor(NAVY).text(nameText, centerX - nameWidth / 2, y, { width: nameWidth, align: 'center' });
+  y += nameHeight;
+
   if (settings.tagline) {
-    doc.fontSize(9).font('Helvetica-Oblique').fillColor(ORANGE).text(settings.tagline, headerX, headerY, { width: PAGE_RIGHT - headerX });
-    headerY += 13;
+    y += gapNameToSubtitle;
+    doc.font('Helvetica').fontSize(8.5).fillColor(GRAY).text(settings.tagline, centerX - subtitleWidth / 2, y, { width: subtitleWidth, align: 'center' });
+    y += subtitleHeight;
   }
-  doc.fontSize(8.5).font('Helvetica').fillColor(GRAY);
-  if (settings.address) {
-    doc.text(settings.address, headerX, headerY, { width: PAGE_RIGHT - headerX });
-    headerY += 11;
-  }
-  const contactLine = [settings.phone, settings.email, settings.website].filter(Boolean).join('   ·   ');
-  if (contactLine) {
-    doc.text(contactLine, headerX, headerY, { width: PAGE_RIGHT - headerX });
-    headerY += 11;
-  }
-  if (settings.taxRegistrationNo) {
-    doc.text(`Tax Reg. No: ${settings.taxRegistrationNo}`, headerX, headerY, { width: PAGE_RIGHT - headerX });
-    headerY += 11;
+
+  y += gapSubtitleToDivider;
+  drawDecorativeDivider(doc, centerX, y + dividerHeight / 2, ORANGE);
+  y += dividerHeight;
+
+  if (phoneText) {
+    y += gapDividerToPhone;
+    const totalWidth = phoneIconSize + 6 + phoneTextWidth;
+    const startX = centerX - totalWidth / 2;
+    drawPhoneIcon(doc, startX + phoneIconSize / 2, y + phoneHeight / 2, phoneIconSize, ORANGE);
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(phoneText, startX + phoneIconSize + 6, y, { width: phoneTextWidth + 1, lineBreak: false });
+    y += phoneHeight;
   }
   doc.fillColor('#000000');
 
-  const logoBottom = 42 + logoWidth * BUNDLED_LOGO_ASPECT;
-  const ruleY = Math.max(headerY + 6, logoBottom + 10, 118);
-  doc.moveTo(PAGE_LEFT, ruleY).lineTo(PAGE_RIGHT, ruleY).strokeColor(ORANGE).lineWidth(2).stroke();
+  const logoBottom = logoY + logoHeight;
+  const ruleY = Math.max(blockTop + blockHeight + 12, logoBottom + 12, 118);
+  doc.moveTo(PAGE_LEFT, ruleY).lineTo(PAGE_RIGHT, ruleY).strokeColor(ORANGE).lineWidth(1.5).stroke();
   doc.lineWidth(1);
   return ruleY;
 }

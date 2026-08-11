@@ -1,14 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { Phone } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { CompanySettings } from '@/types';
 import { QuotationLogo } from './quotation-logo';
 
 /**
- * The Quotation letterhead: logo + company identity block. Deliberately fixed to a white
- * paper / navy-and-orange brand palette regardless of the app's dark/light theme — this is
- * the same "document" that gets exported to PDF, so it should look identical to it.
+ * The Quotation letterhead: identical logo marks flanking a centered company identity block.
+ * Deliberately fixed to a white paper / navy-and-orange brand palette regardless of the app's
+ * dark/light theme — this is the same "document" that gets exported to PDF (see
+ * lib/pdf-branding.ts drawBrandHeader), so it should look identical to it.
  */
 export function QuotationHeader() {
   const { data: settings } = useQuery({
@@ -16,23 +18,28 @@ export function QuotationHeader() {
     queryFn: () => api.get<CompanySettings>('/settings'),
   });
 
-  const contactLine = [settings?.phone, settings?.email, settings?.website].filter(Boolean).join('   ·   ');
+  const name = settings?.name ?? 'Dheeman Decoration and Furniture Solution';
 
   return (
     <div className="rounded-lg border border-[#e5e7eb] bg-white p-6 text-[#0F172A]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-4">
-          <QuotationLogo />
-          <div className="min-w-0">
-            <p className="text-lg font-bold leading-tight">{settings?.name ?? 'Dheeman Decoration And Furniture'}</p>
-            {settings?.tagline && <p className="text-sm font-medium italic text-[#F97316]">{settings.tagline}</p>}
+      <div className="flex items-center justify-between gap-3">
+        <QuotationLogo className="h-11 w-auto shrink-0" />
+        <div className="flex flex-col items-center gap-1.5 px-2 text-center">
+          <p className="font-serif text-lg font-bold uppercase leading-tight tracking-wide text-[#0F172A]">{name}</p>
+          {settings?.tagline && <p className="text-xs text-[#555555]">{settings.tagline}</p>}
+          <div className="flex items-center gap-1.5" aria-hidden="true">
+            <span className="h-px w-8 bg-[#F97316]" />
+            <span className="h-1.5 w-1.5 rotate-45 bg-[#F97316]" />
+            <span className="h-px w-8 bg-[#F97316]" />
           </div>
+          {settings?.phone && (
+            <p className="flex items-center gap-1.5 text-sm font-bold text-[#0F172A]">
+              <Phone className="h-3.5 w-3.5 text-[#F97316]" />
+              {settings.phone}
+            </p>
+          )}
         </div>
-        <div className="space-y-0.5 text-xs text-[#555555] sm:text-right">
-          {settings?.address && <p>{settings.address}</p>}
-          {contactLine && <p>{contactLine}</p>}
-          {settings?.taxRegistrationNo && <p>Tax Reg. No: {settings.taxRegistrationNo}</p>}
-        </div>
+        <QuotationLogo className="h-11 w-auto shrink-0" />
       </div>
       <div className="mt-4 h-[3px] w-full rounded bg-[#F97316]" />
     </div>

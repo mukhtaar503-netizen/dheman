@@ -9,10 +9,10 @@ async function main() {
     where: { id: (await prisma.companySettings.findFirst())?.id ?? '00000000-0000-0000-0000-000000000000' },
     update: {},
     create: {
-      name: 'Dheeman Decoration And Furniture',
-      tagline: 'Professional Decoration & Installation Services',
+      name: 'Dheeman Decoration and Furniture Solution',
+      tagline: 'Aluminum • Furniture • Gypsum & PVC Installation Services',
       address: 'Sheikh Zayed Road, Al Quoz Industrial Area, Dubai, UAE',
-      phone: '+971 4 250 1234',
+      phone: '063-3731036 / 063-3231553',
       email: 'info@dheeman.ae',
       website: 'www.dheeman.ae',
       currency: 'USD',
