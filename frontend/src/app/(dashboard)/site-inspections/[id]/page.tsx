@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Printer, Trash2, Upload } from 'lucide-react';
+import { MoreHorizontal, Plus, Printer, Trash2, Upload } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { openFileInNewTab } from '@/lib/download';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,12 +47,24 @@ interface InspectionDetail extends SiteInspection {
   serviceRequest?: { id: string; referenceNo: string; title?: string | null; customer?: { fullName: string }; serviceCategory?: { name: string } };
 }
 
+/** Compact read-only label/value pair — used for computed or non-editable summary data. */
 function Field({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm">{value ?? '—'}</p>
     </div>
+  );
+}
+
+/** Compact card section header — smaller than the app-wide default so a page with several
+ *  sections still reads as one scannable whole rather than a stack of full-size cards. */
+function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+  return (
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-2">
+      <CardTitle className="text-sm">{title}</CardTitle>
+      {action}
+    </CardHeader>
   );
 }
 
@@ -255,145 +268,242 @@ export default function SiteInspectionDetailPage() {
     );
   }
 
+  // One primary action (the natural next step for the current status) plus everything else
+  // — Print Report, alternate save actions, and Delete — in the "More" menu. Delete is always
+  // last, separated, and rendered in destructive red so it reads as distinct from routine actions.
+  let primaryAction: { label: string; pendingLabel: string; pending: boolean; disabled?: boolean; onClick: () => void };
+  const secondaryItems: { label: string; pendingLabel?: string; pending?: boolean; icon?: React.ComponentType<{ className?: string }>; onClick: () => void }[] = [];
+
+  if (isDraft) {
+    primaryAction = {
+      label: 'Submit Inspection',
+      pendingLabel: 'Submitting…',
+      pending: registrationSaveMutation.isPending && registrationSaveMutation.variables === 'SCHEDULED',
+      disabled: !siteAddress,
+      onClick: () => registrationSaveMutation.mutate('SCHEDULED'),
+    };
+    secondaryItems.push({
+      label: 'Save Draft',
+      pendingLabel: 'Saving…',
+      pending: registrationSaveMutation.isPending && registrationSaveMutation.variables === undefined,
+      onClick: () => registrationSaveMutation.mutate(undefined),
+    });
+  } else if (!isLocked && inspection.status === 'SCHEDULED') {
+    primaryAction = { label: 'Start Inspection', pendingLabel: 'Starting…', pending: saveMutation.isPending, onClick: () => saveMutation.mutate() };
+    secondaryItems.push({
+      label: 'Complete Inspection',
+      pendingLabel: 'Completing…',
+      pending: completeMutation.isPending,
+      onClick: () => completeMutation.mutate(),
+    });
+  } else if (!isLocked) {
+    primaryAction = {
+      label: 'Complete Inspection',
+      pendingLabel: 'Completing…',
+      pending: completeMutation.isPending,
+      onClick: () => completeMutation.mutate(),
+    };
+    secondaryItems.push({ label: 'Save Details', pendingLabel: 'Saving…', pending: saveMutation.isPending, onClick: () => saveMutation.mutate() });
+  } else {
+    primaryAction = { label: 'Print Report', pendingLabel: 'Print Report', pending: false, onClick: handlePrint };
+  }
+
+  if (!isLocked) {
+    secondaryItems.push({ label: 'Print Report', icon: Printer, onClick: handlePrint });
+  }
+
+  const statusSteps: { key: string; label: string; at: string | null; done: boolean }[] = [
+    { key: 'registered', label: 'Registered', at: inspection.createdAt, done: true },
+    { key: 'scheduled', label: 'Scheduled', at: inspection.status !== 'PENDING' ? inspection.updatedAt : null, done: inspection.status !== 'PENDING' },
+    {
+      key: 'in_progress',
+      label: 'In Progress',
+      at: inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? inspection.updatedAt : null,
+      done: inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED',
+    },
+    { key: 'completed', label: 'Completed', at: inspection.submittedAt ?? null, done: inspection.status === 'COMPLETED' },
+  ];
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+    <div className="mx-auto max-w-4xl space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">{inspection.inspectionNo}</h1>
+            <h1 className="text-xl font-semibold">{inspection.inspectionNo}</h1>
             <Badge variant={STATUS_VARIANT[inspection.status]}>{inspection.status.replaceAll('_', ' ')}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
             {inspection.serviceRequest?.referenceNo} — {inspection.serviceRequest?.customer?.fullName}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint}>
-            <Printer className="mr-1 h-4 w-4" /> Print Report
+        <div className="flex items-center gap-2">
+          <Button size="sm" disabled={primaryAction.disabled || primaryAction.pending} onClick={primaryAction.onClick}>
+            {primaryAction.pending ? primaryAction.pendingLabel : primaryAction.label}
           </Button>
-          {isDraft && (
-            <>
-              <Button variant="outline" size="sm" disabled={registrationSaveMutation.isPending} onClick={() => registrationSaveMutation.mutate(undefined)}>
-                {registrationSaveMutation.isPending && registrationSaveMutation.variables === undefined ? 'Saving…' : 'Save Draft'}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="px-2">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">More actions</span>
               </Button>
-              <Button
-                size="sm"
-                disabled={registrationSaveMutation.isPending || !siteAddress}
-                onClick={() => registrationSaveMutation.mutate('SCHEDULED')}
-              >
-                {registrationSaveMutation.isPending && registrationSaveMutation.variables === 'SCHEDULED' ? 'Submitting…' : 'Submit Inspection'}
-              </Button>
-            </>
-          )}
-          {!isDraft && !isLocked && (
-            <>
-              {inspection.status === 'SCHEDULED' ? (
-                <Button variant="outline" size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-                  {saveMutation.isPending ? 'Starting…' : 'Start Inspection'}
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-                  {saveMutation.isPending ? 'Saving…' : 'Save Details'}
-                </Button>
-              )}
-              <Button size="sm" disabled={completeMutation.isPending} onClick={() => completeMutation.mutate()}>
-                {completeMutation.isPending ? 'Completing…' : 'Complete Inspection'}
-              </Button>
-            </>
-          )}
-          <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
-            <Trash2 className="mr-1 h-4 w-4" /> Delete
-          </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {secondaryItems.map((item) => (
+                <DropdownMenuItem key={item.label} disabled={item.pending} onSelect={item.onClick}>
+                  {item.icon && <item.icon className="mr-2 h-4 w-4" />}
+                  {item.pending ? item.pendingLabel : item.label}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfirmDelete(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Overview</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
           <Field label="Service" value={inspection.serviceRequest?.serviceCategory?.name} />
           <Field label="Inspector" value={inspection.inspector?.fullName} />
           <Field label="Scheduled" value={new Date(inspection.scheduledAt).toLocaleString()} />
-          {inspection.submittedAt && <Field label="Completed" value={new Date(inspection.submittedAt).toLocaleString()} />}
+          <Field label="Completed" value={inspection.submittedAt ? new Date(inspection.submittedAt).toLocaleString() : undefined} />
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Site Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-1 sm:col-span-3">
-            <Label htmlFor="siteAddress">Site address</Label>
-            <Input id="siteAddress" disabled={isLocked} value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} placeholder="e.g. Villa 12, Al Nahda" />
+        <SectionHeader title="Site" />
+        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-5">
+          <div className="space-y-1 sm:col-span-5">
+            <Label htmlFor="siteAddress" className="text-xs">
+              Address
+            </Label>
+            <Input
+              id="siteAddress"
+              className="h-8 text-sm"
+              disabled={isLocked}
+              value={siteAddress}
+              onChange={(e) => setSiteAddress(e.target.value)}
+              placeholder="e.g. Villa 12, Al Nahda"
+            />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="landmark">Landmark</Label>
-            <Input id="landmark" disabled={isLocked} value={landmark} onChange={(e) => setLandmark(e.target.value)} />
+            <Label htmlFor="landmark" className="text-xs">
+              Landmark
+            </Label>
+            <Input id="landmark" className="h-8 text-sm" disabled={isLocked} value={landmark} onChange={(e) => setLandmark(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="city">City</Label>
-            <Input id="city" disabled={isLocked} value={city} onChange={(e) => setCity(e.target.value)} />
+            <Label htmlFor="city" className="text-xs">
+              City
+            </Label>
+            <Input id="city" className="h-8 text-sm" disabled={isLocked} value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="region">Region</Label>
-            <Input id="region" disabled={isLocked} value={region} onChange={(e) => setRegion(e.target.value)} />
+            <Label htmlFor="region" className="text-xs">
+              Region
+            </Label>
+            <Input id="region" className="h-8 text-sm" disabled={isLocked} value={region} onChange={(e) => setRegion(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="latitude">Latitude</Label>
-            <Input id="latitude" type="number" disabled={isLocked} value={latitude} onChange={(e) => setLatitude(e.target.value)} />
+            <Label htmlFor="latitude" className="text-xs">
+              Latitude
+            </Label>
+            <Input id="latitude" type="number" className="h-8 text-sm" disabled={isLocked} value={latitude} onChange={(e) => setLatitude(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="longitude">Longitude</Label>
-            <Input id="longitude" type="number" disabled={isLocked} value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+            <Label htmlFor="longitude" className="text-xs">
+              Longitude
+            </Label>
+            <Input
+              id="longitude"
+              type="number"
+              className="h-8 text-sm"
+              disabled={isLocked}
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Inspection Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <SectionHeader title="Inspection Notes" />
+        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="inspectionPurpose">Inspection Purpose</Label>
-            <Textarea id="inspectionPurpose" rows={2} disabled={isLocked} value={inspectionPurpose} onChange={(e) => setInspectionPurpose(e.target.value)} />
+            <Label htmlFor="inspectionPurpose" className="text-xs">
+              Purpose
+            </Label>
+            <Textarea id="inspectionPurpose" rows={2} className="text-sm" disabled={isLocked} value={inspectionPurpose} onChange={(e) => setInspectionPurpose(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="customerRequirements">Customer Requirements</Label>
-            <Textarea id="customerRequirements" rows={2} disabled={isLocked} value={customerRequirements} onChange={(e) => setCustomerRequirements(e.target.value)} />
+            <Label htmlFor="customerRequirements" className="text-xs">
+              Customer Requirements
+            </Label>
+            <Textarea
+              id="customerRequirements"
+              rows={2}
+              className="text-sm"
+              disabled={isLocked}
+              value={customerRequirements}
+              onChange={(e) => setCustomerRequirements(e.target.value)}
+            />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="existingSiteCondition">Existing Site Condition</Label>
-            <Textarea id="existingSiteCondition" rows={2} disabled={isLocked} value={existingSiteCondition} onChange={(e) => setExistingSiteCondition(e.target.value)} />
+            <Label htmlFor="existingSiteCondition" className="text-xs">
+              Site Condition
+            </Label>
+            <Textarea
+              id="existingSiteCondition"
+              rows={2}
+              className="text-sm"
+              disabled={isLocked}
+              value={existingSiteCondition}
+              onChange={(e) => setExistingSiteCondition(e.target.value)}
+            />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="technicalNotes">Technical Notes</Label>
-            <Textarea id="technicalNotes" rows={3} disabled={isLocked} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} />
+            <Label htmlFor="technicalNotes" className="text-xs">
+              Technical Notes
+            </Label>
+            <Textarea id="technicalNotes" rows={2} className="text-sm" disabled={isLocked} value={technicalNotes} onChange={(e) => setTechnicalNotes(e.target.value)} />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="internalNotes" className="text-xs">
+              Internal Notes
+            </Label>
+            <Textarea
+              id="internalNotes"
+              rows={2}
+              className="text-sm"
+              disabled={isLocked}
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              placeholder="Engineer / inspector remarks"
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Measurements</CardTitle>
-          {!isLocked && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setMeasurements([...measurements, { label: '', unit: 'ft' }])}
-            >
-              <Plus className="mr-1 h-4 w-4" /> Add
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-2">
+        <SectionHeader
+          title="Measurements"
+          action={
+            !isLocked && (
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setMeasurements([...measurements, { label: '', unit: 'ft' }])}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+              </Button>
+            )
+          }
+        />
+        <CardContent className="space-y-1.5 p-4 pt-0">
           {measurements.length === 0 && <p className="text-sm text-muted-foreground">No measurements recorded.</p>}
           {measurements.map((m, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-9">
+            <div key={i} className="grid grid-cols-2 gap-1.5 sm:grid-cols-9">
               <Input
-                className="sm:col-span-2"
+                className="h-8 text-sm sm:col-span-2"
                 placeholder="Area/Room"
                 disabled={isLocked}
                 value={m.label ?? ''}
@@ -401,6 +511,7 @@ export default function SiteInspectionDetailPage() {
               />
               <Input
                 type="number"
+                className="h-8 text-sm"
                 placeholder="Length"
                 disabled={isLocked}
                 value={m.length ?? ''}
@@ -408,6 +519,7 @@ export default function SiteInspectionDetailPage() {
               />
               <Input
                 type="number"
+                className="h-8 text-sm"
                 placeholder="Width"
                 disabled={isLocked}
                 value={m.width ?? ''}
@@ -415,12 +527,14 @@ export default function SiteInspectionDetailPage() {
               />
               <Input
                 type="number"
+                className="h-8 text-sm"
                 placeholder="Height"
                 disabled={isLocked}
                 value={m.height ?? ''}
                 onChange={(e) => setMeasurements(measurements.map((row, idx) => (idx === i ? { ...row, height: Number(e.target.value) } : row)))}
               />
               <Input
+                className="h-8 text-sm"
                 placeholder="Unit"
                 disabled={isLocked}
                 value={m.unit ?? ''}
@@ -428,21 +542,23 @@ export default function SiteInspectionDetailPage() {
               />
               <Input
                 type="number"
+                className="h-8 text-sm"
                 placeholder="Qty"
                 disabled={isLocked}
                 value={m.quantity ?? ''}
                 onChange={(e) => setMeasurements(measurements.map((row, idx) => (idx === i ? { ...row, quantity: Number(e.target.value) } : row)))}
               />
-              <div className="flex gap-1">
+              <div className="flex gap-1 sm:col-span-2">
                 <Input
+                  className="h-8 text-sm"
                   placeholder="Notes"
                   disabled={isLocked}
                   value={m.notes ?? ''}
                   onChange={(e) => setMeasurements(measurements.map((row, idx) => (idx === i ? { ...row, notes: e.target.value } : row)))}
                 />
                 {!isLocked && (
-                  <Button variant="ghost" size="sm" onClick={() => setMeasurements(measurements.filter((_, idx) => idx !== i))}>
-                    <Trash2 className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setMeasurements(measurements.filter((_, idx) => idx !== i))}>
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
@@ -452,73 +568,82 @@ export default function SiteInspectionDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Materials Assessment</CardTitle>
-          {!isLocked && (
-            <Button size="sm" variant="outline" onClick={() => setMaterials([...materials, { material: '', quantity: '', unit: '', remarks: '' }])}>
-              <Plus className="mr-1 h-4 w-4" /> Add
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-2">
+        <SectionHeader
+          title="Materials"
+          action={
+            !isLocked && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                onClick={() => setMaterials([...materials, { material: '', quantity: '', unit: '', remarks: '' }])}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+              </Button>
+            )
+          }
+        />
+        <CardContent className="space-y-1.5 p-4 pt-0">
           {materials.length === 0 && <p className="text-sm text-muted-foreground">No materials estimated.</p>}
           {materials.map((row, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+            <div key={i} className="grid grid-cols-2 gap-1.5 sm:grid-cols-6">
               <Input
+                className="h-8 text-sm"
                 placeholder="Material"
                 disabled={isLocked}
                 value={row.material}
                 onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, material: e.target.value } : r)))}
               />
               <Input
+                className="h-8 text-sm"
                 placeholder="Unit"
                 disabled={isLocked}
                 value={row.unit ?? ''}
                 onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, unit: e.target.value } : r)))}
               />
               <Input
-                placeholder="Estimated Quantity"
+                className="h-8 text-sm"
+                placeholder="Est. Quantity"
                 disabled={isLocked}
                 value={row.quantity}
                 onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, quantity: e.target.value } : r)))}
               />
               <Input
                 type="number"
-                placeholder="Estimated cost (optional)"
+                className="h-8 text-sm"
+                placeholder="Est. cost"
                 disabled={isLocked}
                 value={row.estimatedCost ?? ''}
                 onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, estimatedCost: Number(e.target.value) } : r)))}
               />
               <Input
+                className="h-8 text-sm"
                 placeholder="Remarks"
                 disabled={isLocked}
                 value={row.remarks ?? ''}
                 onChange={(e) => setMaterials(materials.map((r, idx) => (idx === i ? { ...r, remarks: e.target.value } : r)))}
               />
               {!isLocked && (
-                <Button variant="ghost" size="sm" onClick={() => setMaterials(materials.filter((_, idx) => idx !== i))}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-8 justify-self-start px-2" onClick={() => setMaterials(materials.filter((_, idx) => idx !== i))}>
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
           ))}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Labor Estimation</CardTitle>
-          {!isLocked && (
-            <Button size="sm" variant="outline" onClick={() => setLabor([...labor, { task: '', estimatedHours: 0, cost: 0 }])}>
-              <Plus className="mr-1 h-4 w-4" /> Add
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-2">
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Labor</p>
+            {!isLocked && (
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setLabor([...labor, { task: '', estimatedHours: 0, cost: 0 }])}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add
+              </Button>
+            )}
+          </div>
           {labor.length === 0 && <p className="text-sm text-muted-foreground">No labor estimated.</p>}
           {labor.map((row, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div key={i} className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               <Input
+                className="h-8 text-sm"
                 placeholder="Task"
                 disabled={isLocked}
                 value={row.task}
@@ -526,21 +651,23 @@ export default function SiteInspectionDetailPage() {
               />
               <Input
                 type="number"
-                placeholder="Estimated hours"
+                className="h-8 text-sm"
+                placeholder="Est. hours"
                 disabled={isLocked}
                 value={row.estimatedHours}
                 onChange={(e) => setLabor(labor.map((r, idx) => (idx === i ? { ...r, estimatedHours: Number(e.target.value) } : r)))}
               />
               <Input
                 type="number"
+                className="h-8 text-sm"
                 placeholder="Cost"
                 disabled={isLocked}
                 value={row.cost}
                 onChange={(e) => setLabor(labor.map((r, idx) => (idx === i ? { ...r, cost: Number(e.target.value) } : r)))}
               />
               {!isLocked && (
-                <Button variant="ghost" size="sm" onClick={() => setLabor(labor.filter((_, idx) => idx !== i))}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-8 justify-self-start px-2" onClick={() => setLabor(labor.filter((_, idx) => idx !== i))}>
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
@@ -549,97 +676,150 @@ export default function SiteInspectionDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Labor Assessment</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-1">
-            <Label htmlFor="estimatedWorkers">Estimated Workers</Label>
-            <Input id="estimatedWorkers" type="number" disabled={isLocked} value={estimatedWorkers} onChange={(e) => setEstimatedWorkers(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="estimatedWorkingDays">Estimated Working Days</Label>
-            <Input
-              id="estimatedWorkingDays"
-              type="number"
-              disabled={isLocked}
-              value={estimatedWorkingDays}
-              onChange={(e) => setEstimatedWorkingDays(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="specialSkillsRequired">Special Skills Required</Label>
-            <Input id="specialSkillsRequired" disabled={isLocked} value={specialSkillsRequired} onChange={(e) => setSpecialSkillsRequired(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transportation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <section className="grid gap-4 sm:grid-cols-2">
+        <SectionHeader title="Estimation" />
+        <CardContent className="space-y-4 p-4 pt-0">
+          <div className="flex flex-wrap items-end justify-between gap-4 rounded-md border border-border bg-muted/30 p-3">
             <div className="space-y-1">
-              <Label htmlFor="vehicleRequired">Vehicle Required</Label>
-              <Input id="vehicleRequired" disabled={isLocked} value={vehicleRequired} onChange={(e) => setVehicleRequired(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="transportDistance">Distance (km)</Label>
-              <Input id="transportDistance" type="number" disabled={isLocked} value={transportDistance} onChange={(e) => setTransportDistance(e.target.value)} />
-            </div>
-          </section>
-          <div className="space-y-1">
-            <Label htmlFor="accessibility">Accessibility</Label>
-            <Input id="accessibility" disabled={isLocked} value={accessibility} onChange={(e) => setAccessibility(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="transportationNotes">Transportation Notes</Label>
-            <Textarea id="transportationNotes" rows={2} disabled={isLocked} value={transportationNotes} onChange={(e) => setTransportationNotes(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Cost Estimation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="Material cost" value={inspection.materialCost != null ? `$${Number(inspection.materialCost).toFixed(2)}` : '—'} />
-            <Field label="Labor cost" value={inspection.laborCost != null ? `$${Number(inspection.laborCost).toFixed(2)}` : '—'} />
-            <div className="space-y-1">
-              <Label>Transportation cost</Label>
-              <Input type="number" disabled={isLocked} value={transportationCost} onChange={(e) => setTransportationCost(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label>Estimated total cost</Label>
-              <Input type="number" disabled={isLocked} value={estimatedCost} onChange={(e) => setEstimatedCost(e.target.value)} />
+              <Label htmlFor="estimatedCost" className="text-xs">
+                Estimated Total
+              </Label>
+              <Input
+                id="estimatedCost"
+                type="number"
+                className="h-9 w-40 text-lg font-semibold"
+                disabled={isLocked}
+                value={estimatedCost}
+                onChange={(e) => setEstimatedCost(e.target.value)}
+              />
               <p className="text-xs text-muted-foreground">Auto-calculated from material + labor + transportation unless overridden.</p>
             </div>
-            <div className="space-y-1">
-              <Label>Estimated duration</Label>
-              <Input placeholder="e.g. 2 days" disabled={isLocked} value={estimatedDuration} onChange={(e) => setEstimatedDuration(e.target.value)} />
+            <div className="flex flex-wrap gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="estimatedWorkers" className="text-xs">
+                  Workers
+                </Label>
+                <Input
+                  id="estimatedWorkers"
+                  type="number"
+                  className="h-8 w-20 text-sm"
+                  disabled={isLocked}
+                  value={estimatedWorkers}
+                  onChange={(e) => setEstimatedWorkers(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="estimatedWorkingDays" className="text-xs">
+                  Working Days
+                </Label>
+                <Input
+                  id="estimatedWorkingDays"
+                  type="number"
+                  className="h-8 w-20 text-sm"
+                  disabled={isLocked}
+                  value={estimatedWorkingDays}
+                  onChange={(e) => setEstimatedWorkingDays(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="estimatedDuration" className="text-xs">
+                  Duration
+                </Label>
+                <Input
+                  id="estimatedDuration"
+                  className="h-8 w-24 text-sm"
+                  placeholder="e.g. 2 days"
+                  disabled={isLocked}
+                  value={estimatedDuration}
+                  onChange={(e) => setEstimatedDuration(e.target.value)}
+                />
+              </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Field label="Material cost" value={inspection.materialCost != null ? `$${Number(inspection.materialCost).toFixed(2)}` : undefined} />
+            <Field label="Labor cost" value={inspection.laborCost != null ? `$${Number(inspection.laborCost).toFixed(2)}` : undefined} />
+            <div className="space-y-1">
+              <Label htmlFor="transportationCost" className="text-xs">
+                Transportation cost
+              </Label>
+              <Input
+                id="transportationCost"
+                type="number"
+                className="h-8 text-sm"
+                disabled={isLocked}
+                value={transportationCost}
+                onChange={(e) => setTransportationCost(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="space-y-1">
+              <Label htmlFor="vehicleRequired" className="text-xs">
+                Vehicle Required
+              </Label>
+              <Input id="vehicleRequired" className="h-8 text-sm" disabled={isLocked} value={vehicleRequired} onChange={(e) => setVehicleRequired(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="transportDistance" className="text-xs">
+                Distance (km)
+              </Label>
+              <Input
+                id="transportDistance"
+                type="number"
+                className="h-8 text-sm"
+                disabled={isLocked}
+                value={transportDistance}
+                onChange={(e) => setTransportDistance(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="accessibility" className="text-xs">
+                Accessibility
+              </Label>
+              <Input id="accessibility" className="h-8 text-sm" disabled={isLocked} value={accessibility} onChange={(e) => setAccessibility(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="specialSkillsRequired" className="text-xs">
+                Special Skills
+              </Label>
+              <Input
+                id="specialSkillsRequired"
+                className="h-8 text-sm"
+                disabled={isLocked}
+                value={specialSkillsRequired}
+                onChange={(e) => setSpecialSkillsRequired(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="transportationNotes" className="text-xs">
+              Transportation Notes
+            </Label>
+            <Textarea
+              id="transportationNotes"
+              rows={2}
+              className="text-sm"
+              disabled={isLocked}
+              value={transportationNotes}
+              onChange={(e) => setTransportationNotes(e.target.value)}
+            />
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Attachments</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <SectionHeader title="Attachments" />
+        <CardContent className="space-y-3 p-4 pt-0">
           {(!inspection.photos || inspection.photos.length === 0) && <p className="text-sm text-muted-foreground">No attachments uploaded.</p>}
           {inspection.photos && inspection.photos.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {inspection.photos.map((p) =>
                 p.fileType === 'PHOTO' ? (
                   <a key={p.id} href={p.fileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={p.fileUrl} alt={p.caption ?? 'Inspection photo'} loading="lazy" className="h-24 w-full object-cover" />
+                    <img src={p.fileUrl} alt={p.caption ?? 'Inspection photo'} loading="lazy" className="h-16 w-full object-cover" />
                   </a>
                 ) : (
                   <a
@@ -647,10 +827,10 @@ export default function SiteInspectionDetailPage() {
                     href={p.fileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex h-24 flex-col items-center justify-center gap-1 rounded-md border border-border text-xs text-muted-foreground"
+                    className="flex h-16 flex-col items-center justify-center gap-0.5 rounded-md border border-border text-xs text-muted-foreground"
                   >
                     <span className="font-medium text-foreground">{ATTACHMENT_TYPE_LABEL[p.fileType]}</span>
-                    <span>View file</span>
+                    <span>View</span>
                   </a>
                 ),
               )}
@@ -670,8 +850,8 @@ export default function SiteInspectionDetailPage() {
                 </SelectContent>
               </Select>
               <Input type="file" className="h-8 max-w-xs text-xs" onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)} />
-              <Button size="sm" variant="outline" disabled={!attachmentFile || uploading} onClick={handleAttachmentUpload}>
-                <Upload className="mr-1 h-4 w-4" /> {uploading ? 'Uploading…' : 'Upload'}
+              <Button size="sm" variant="outline" className="h-8" disabled={!attachmentFile || uploading} onClick={handleAttachmentUpload}>
+                <Upload className="mr-1 h-3.5 w-3.5" /> {uploading ? 'Uploading…' : 'Upload'}
               </Button>
             </div>
           )}
@@ -679,61 +859,23 @@ export default function SiteInspectionDetailPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Internal Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            rows={4}
-            disabled={isLocked}
-            value={internalNotes}
-            onChange={(e) => setInternalNotes(e.target.value)}
-            placeholder="Engineer / inspector remarks"
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Status Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-3">
-            <li className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-primary" /> Registered
-              </span>
-              <span className="text-muted-foreground">{new Date(inspection.createdAt).toLocaleString()}</span>
-            </li>
-            <li className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${inspection.status !== 'PENDING' ? 'bg-primary' : 'bg-muted'}`} /> Scheduled
-              </span>
-              <span className="text-muted-foreground">{inspection.status !== 'PENDING' ? new Date(inspection.updatedAt).toLocaleString() : '—'}</span>
-            </li>
-            <li className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? 'bg-primary' : 'bg-muted'}`} /> In Progress
-              </span>
-              <span className="text-muted-foreground">
-                {inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? new Date(inspection.updatedAt).toLocaleString() : '—'}
-              </span>
-            </li>
-            <li className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${inspection.status === 'COMPLETED' ? 'bg-emerald-500' : 'bg-muted'}`} /> Completed
-              </span>
-              <span className="text-muted-foreground">{inspection.submittedAt ? new Date(inspection.submittedAt).toLocaleString() : '—'}</span>
-            </li>
-            {inspection.status === 'CANCELLED' && (
-              <li className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-destructive" /> Cancelled
-                </span>
-                <span className="text-muted-foreground">{new Date(inspection.updatedAt).toLocaleString()}</span>
-              </li>
-            )}
-          </ol>
+        <SectionHeader title="Status" />
+        <CardContent className="p-4 pt-0">
+          <div className="flex items-start">
+            {statusSteps.map((step, i) => (
+              <React.Fragment key={step.key}>
+                <div className="flex w-20 flex-col items-center gap-1 text-center">
+                  <span className={`h-2 w-2 rounded-full ${step.done ? 'bg-primary' : 'bg-muted'}`} />
+                  <span className="text-xs font-medium">{step.label}</span>
+                  <span className="text-[10px] text-muted-foreground">{step.at ? new Date(step.at).toLocaleDateString() : '—'}</span>
+                </div>
+                {i < statusSteps.length - 1 && <div className={`mt-1 h-px flex-1 ${step.done ? 'bg-primary' : 'bg-muted'}`} />}
+              </React.Fragment>
+            ))}
+          </div>
+          {inspection.status === 'CANCELLED' && (
+            <p className="mt-3 text-xs text-destructive">Cancelled on {new Date(inspection.updatedAt).toLocaleString()}</p>
+          )}
         </CardContent>
       </Card>
 
