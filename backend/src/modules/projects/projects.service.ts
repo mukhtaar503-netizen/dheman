@@ -147,16 +147,18 @@ export async function assignStaff(
     ),
   );
 
-  for (const userId of uniqueUserIds) {
-    await notify({
-      userId,
-      type: NotificationType.PROJECT_STATUS_CHANGED,
-      title: 'You have been assigned to a Project',
-      body: id,
-      entityType: 'Project',
-      entityId: id,
-    });
-  }
+  await Promise.all(
+    uniqueUserIds.map((userId) =>
+      notify({
+        userId,
+        type: NotificationType.PROJECT_STATUS_CHANGED,
+        title: 'You have been assigned to a Project',
+        body: id,
+        entityType: 'Project',
+        entityId: id,
+      }),
+    ),
+  );
 
   await recordAudit({ actorId: actor.id, action: 'ASSIGN_STAFF', entityType: 'Project', entityId: id, after: created });
   return created;
