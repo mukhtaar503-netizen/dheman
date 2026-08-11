@@ -50,15 +50,20 @@ export interface CompanySettingsForPdf {
   taxRegistrationNo: string | null;
 }
 
-/** A small rotated rounded bar with two circular ends — a minimal handset silhouette. */
-function drawPhoneIcon(doc: PDFKit.PDFDocument, cx: number, cy: number, size: number, color: string): void {
+// Standard "call" glyph (telephone handset silhouette), defined on a 24x24 grid — the same
+// path used by Material Design's phone icon — so the header shows a recognizable handset
+// rather than a hand-built abstract shape. Drawn via PDFKit's SVG-path support and scaled to
+// whatever pixel size is requested.
+const PHONE_HANDSET_PATH =
+  'M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z';
+
+/** Draws a standard telephone handset icon with its top-left corner at (x, y). */
+function drawPhoneIcon(doc: PDFKit.PDFDocument, x: number, y: number, size: number, color: string): void {
   doc.save();
-  doc.translate(cx, cy);
-  doc.rotate(-45);
-  doc.roundedRect(-size / 2, -size / 6, size, size / 3, size / 6).fill(color);
+  doc.translate(x, y);
+  doc.scale(size / 24);
+  doc.path(PHONE_HANDSET_PATH).fill(color);
   doc.restore();
-  doc.circle(cx - size * 0.42, cy - size * 0.42, size * 0.16).fill(color);
-  doc.circle(cx + size * 0.42, cy + size * 0.42, size * 0.16).fill(color);
 }
 
 /** A short line — small diamond — short line, centered on cx. Purely decorative. */
@@ -147,7 +152,7 @@ export function drawBrandHeader(doc: PDFKit.PDFDocument, settings: CompanySettin
     y += gapDividerToPhone;
     const totalWidth = phoneIconSize + 6 + phoneTextWidth;
     const startX = centerX - totalWidth / 2;
-    drawPhoneIcon(doc, startX + phoneIconSize / 2, y + phoneHeight / 2, phoneIconSize, ORANGE);
+    drawPhoneIcon(doc, startX, y + (phoneHeight - phoneIconSize) / 2, phoneIconSize, ORANGE);
     doc.font('Helvetica-Bold').fontSize(10).fillColor(NAVY).text(phoneText, startX + phoneIconSize + 6, y, { width: phoneTextWidth + 1, lineBreak: false });
     y += phoneHeight;
   }
