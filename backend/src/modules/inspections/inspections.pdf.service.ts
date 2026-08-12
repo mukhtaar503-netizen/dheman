@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit';
 import type { Prisma } from '@prisma/client';
 import { getSettings } from '@/modules/settings/settings.service';
-import { NAVY, ORANGE, GRAY, LIGHT_BORDER, PAGE_LEFT, PAGE_RIGHT, PAGE_WIDTH, resolveLogoBuffer, drawBrandHeader, attachBrandFooter } from '@/lib/pdf-branding';
+import { NAVY, GRAY, PAGE_LEFT, PAGE_RIGHT, PAGE_WIDTH, resolveLogoBuffer, drawBrandHeader, attachBrandFooter } from '@/lib/pdf-branding';
 
 type InspectionForPdf = Prisma.SiteInspectionGetPayload<{
   include: {
@@ -12,7 +12,7 @@ type InspectionForPdf = Prisma.SiteInspectionGetPayload<{
 }>;
 
 type MaterialRow = { material: string; quantity: string; unit?: string; estimatedCost?: number; remarks?: string };
-type LaborRow = { task: string; estimatedHours: number; cost: number };
+type LaborRow = { task: string; workers?: number; days?: number; estimatedHours?: number; cost: number };
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pending',
@@ -74,123 +74,136 @@ export async function generateInspectionPdf(inspection: InspectionForPdf): Promi
       py += 14;
     }
 
-    // ── Measurements ─────────────────────────────────────────────────────────
-    if (inspection.measurements.length) {
-      py += 10;
-      if (py > 680) {
-        doc.addPage();
-        py = 50;
-      }
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Measurements', PAGE_LEFT, py);
-      doc.fillColor('#000000');
-      py += 18;
-      const col = { area: PAGE_LEFT, l: 190, w: 240, h: 290, unit: 340, qty: 390, notes: 430 };
+    // Shared 4-column table layout (Item/Name/Type + 3 right-aligned numeric columns) reused
+    // by Measurements, Materials, and Labor below — keeps all three visually identical, which
+    // is what lets the detail page mirror this exact structure column-for-column.
+    const tcol = { first: PAGE_LEFT, c1: 300, c2: 380, c3: 460 };
+    const tFirstWidth = tcol.c1 - tcol.first - 8;
+    const tColWidth = 72;
+
+    function drawTableHeader(headers: [string, string, string, string]) {
       doc.font('Helvetica-Bold').fontSize(8.5);
-      doc.text('Area/Room', col.area, py, { width: 135 });
-      doc.text('L', col.l, py, { width: 45, align: 'right' });
-      doc.text('W', col.w, py, { width: 45, align: 'right' });
-      doc.text('H', col.h, py, { width: 45, align: 'right' });
-      doc.text('Unit', col.unit, py, { width: 45 });
-      doc.text('Qty', col.qty, py, { width: 35, align: 'right' });
-      doc.text('Notes', col.notes, py, { width: PAGE_RIGHT - col.notes });
+      doc.text(headers[0], tcol.first, py, { width: tFirstWidth });
+      doc.text(headers[1], tcol.c1, py, { width: tColWidth, align: 'right' });
+      doc.text(headers[2], tcol.c2, py, { width: tColWidth, align: 'right' });
+      doc.text(headers[3], tcol.c3, py, { width: PAGE_RIGHT - tcol.c3, align: 'right' });
       py += 12;
       doc.moveTo(PAGE_LEFT, py).lineTo(PAGE_RIGHT, py).strokeColor(NAVY).stroke();
       py += 6;
-      doc.font('Helvetica').fontSize(8.5);
-      for (const m of inspection.measurements) {
-        if (py > 740) {
-          doc.addPage();
-          py = 50;
-        }
-        doc.text(m.label, col.area, py, { width: 135 });
-        doc.text(m.length != null ? Number(m.length).toString() : '—', col.l, py, { width: 45, align: 'right' });
-        doc.text(m.width != null ? Number(m.width).toString() : '—', col.w, py, { width: 45, align: 'right' });
-        doc.text(m.height != null ? Number(m.height).toString() : '—', col.h, py, { width: 45, align: 'right' });
-        doc.text(m.unit, col.unit, py, { width: 45 });
-        doc.text(m.quantity != null ? String(m.quantity) : '—', col.qty, py, { width: 35, align: 'right' });
-        doc.text(m.notes ?? '—', col.notes, py, { width: PAGE_RIGHT - col.notes });
-        py += 14;
-      }
-      py += 6;
-    }
-
-    // ── Materials assessment ────────────────────────────────────────────────
-    const materials = (inspection.materialEstimate as MaterialRow[] | null) ?? [];
-    if (materials.length) {
-      py += 6;
-      if (py > 680) {
-        doc.addPage();
-        py = 50;
-      }
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Materials Assessment', PAGE_LEFT, py);
-      doc.fillColor('#000000');
-      py += 18;
       doc.font('Helvetica').fontSize(9);
+    }
+
+    function ensureSpace(threshold = 740) {
+      if (py > threshold) {
+        doc.addPage();
+        py = 50;
+      }
+    }
+
+    // ── Measurements ─────────────────────────────────────────────────────────
+    py += 10;
+    ensureSpace(680);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Measurements', PAGE_LEFT, py);
+    doc.fillColor('#000000');
+    py += 18;
+    if (inspection.measurements.length) {
+      drawTableHeader(['Item', 'Height (m)', 'Width (m)', 'Area (m²)']);
+      let totalArea = 0;
+      for (const m of inspection.measurements) {
+        ensureSpace();
+        const height = m.height != null ? Number(m.height) : null;
+        const width = m.width != null ? Number(m.width) : null;
+        const area = m.area != null ? Number(m.area) : height != null && width != null ? height * width : null;
+        if (area != null) totalArea += area;
+        doc.text(m.label, tcol.first, py, { width: tFirstWidth });
+        doc.text(height != null ? height.toString() : '—', tcol.c1, py, { width: tColWidth, align: 'right' });
+        doc.text(width != null ? width.toString() : '—', tcol.c2, py, { width: tColWidth, align: 'right' });
+        doc.text(area != null ? area.toFixed(2) : '—', tcol.c3, py, { width: PAGE_RIGHT - tcol.c3, align: 'right' });
+        py += 14;
+      }
+      py += 4;
+      doc.font('Helvetica-Bold').fontSize(9.5).text(`Total Area: ${totalArea.toFixed(2)} m²`, PAGE_LEFT, py, { width: PAGE_WIDTH, align: 'right' });
+      py += 16;
+    } else {
+      doc.font('Helvetica').fontSize(9.5).fillColor(GRAY).text('No measurements added.', PAGE_LEFT, py);
+      doc.fillColor('#000000');
+      py += 18;
+    }
+
+    // ── Materials ────────────────────────────────────────────────────────────
+    const materials = (inspection.materialEstimate as MaterialRow[] | null) ?? [];
+    py += 6;
+    ensureSpace(680);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Materials', PAGE_LEFT, py);
+    doc.fillColor('#000000');
+    py += 18;
+    if (materials.length) {
+      drawTableHeader(['Material Name', 'Quantity', 'Unit', 'Cost']);
       for (const m of materials) {
-        if (py > 740) {
-          doc.addPage();
-          py = 50;
-        }
-        const line = [m.material, m.quantity, m.unit].filter(Boolean).join(' · ');
-        doc.text(`• ${line}${m.remarks ? ` — ${m.remarks}` : ''}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 13;
+        ensureSpace();
+        doc.text(m.material, tcol.first, py, { width: tFirstWidth });
+        doc.text(m.quantity || '—', tcol.c1, py, { width: tColWidth, align: 'right' });
+        doc.text(m.unit || '—', tcol.c2, py, { width: tColWidth, align: 'right' });
+        doc.text(m.estimatedCost != null ? `$${Number(m.estimatedCost).toFixed(2)}` : '—', tcol.c3, py, { width: PAGE_RIGHT - tcol.c3, align: 'right' });
+        py += 14;
       }
-      py += 6;
-    }
-
-    // ── Labor assessment ─────────────────────────────────────────────────────
-    if (inspection.estimatedWorkers != null || inspection.estimatedWorkingDays != null || inspection.specialSkillsRequired) {
-      if (py > 700) {
-        doc.addPage();
-        py = 50;
-      }
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Labor Assessment', PAGE_LEFT, py);
+      py += 10;
+    } else {
+      doc.font('Helvetica').fontSize(9.5).fillColor(GRAY).text('No materials added.', PAGE_LEFT, py);
       doc.fillColor('#000000');
       py += 18;
-      doc.font('Helvetica').fontSize(10);
-      if (inspection.estimatedWorkers != null) {
-        doc.text(`Estimated Workers: ${inspection.estimatedWorkers}`, PAGE_LEFT, py);
-        py += 14;
-      }
-      if (inspection.estimatedWorkingDays != null) {
-        doc.text(`Estimated Working Days: ${inspection.estimatedWorkingDays}`, PAGE_LEFT, py);
-        py += 14;
-      }
-      if (inspection.specialSkillsRequired) {
-        doc.text(`Special Skills Required: ${inspection.specialSkillsRequired}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14;
-      }
-      py += 6;
     }
 
-    // ── Transportation ───────────────────────────────────────────────────────
-    if (inspection.vehicleRequired || inspection.transportDistance != null || inspection.accessibility || inspection.transportationNotes) {
-      if (py > 700) {
-        doc.addPage();
-        py = 50;
+    // ── Labor ────────────────────────────────────────────────────────────────
+    const labor = (inspection.laborEstimate as LaborRow[] | null) ?? [];
+    ensureSpace(680);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Labor', PAGE_LEFT, py);
+    doc.fillColor('#000000');
+    py += 18;
+    if (labor.length) {
+      drawTableHeader(['Work Type', 'Workers', 'Days', 'Cost']);
+      for (const l of labor) {
+        ensureSpace();
+        doc.text(l.task, tcol.first, py, { width: tFirstWidth });
+        doc.text(l.workers != null ? String(l.workers) : '—', tcol.c1, py, { width: tColWidth, align: 'right' });
+        doc.text(l.days != null ? String(l.days) : '—', tcol.c2, py, { width: tColWidth, align: 'right' });
+        doc.text(`$${Number(l.cost).toFixed(2)}`, tcol.c3, py, { width: PAGE_RIGHT - tcol.c3, align: 'right' });
+        py += 14;
       }
-      doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Transportation', PAGE_LEFT, py);
+      py += 10;
+    } else {
+      doc.font('Helvetica').fontSize(9.5).fillColor(GRAY).text('No labor added.', PAGE_LEFT, py);
       doc.fillColor('#000000');
       py += 18;
-      doc.font('Helvetica').fontSize(10);
-      if (inspection.vehicleRequired) {
-        doc.text(`Vehicle Required: ${inspection.vehicleRequired}`, PAGE_LEFT, py);
-        py += 14;
-      }
-      if (inspection.transportDistance != null) {
-        doc.text(`Distance: ${Number(inspection.transportDistance)} km`, PAGE_LEFT, py);
-        py += 14;
-      }
-      if (inspection.accessibility) {
-        doc.text(`Accessibility: ${inspection.accessibility}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14;
-      }
-      if (inspection.transportationNotes) {
-        doc.text(`Notes: ${inspection.transportationNotes}`, PAGE_LEFT, py, { width: PAGE_WIDTH });
-        py += 14;
-      }
-      py += 6;
     }
+
+    // ── Cost Estimate ────────────────────────────────────────────────────────
+    // Same formula the detail page shows and the backend derives on save: material + labor +
+    // transportation, unless an explicit override was ever stored on this record.
+    const materialCost = inspection.materialCost != null ? Number(inspection.materialCost) : 0;
+    const laborCost = inspection.laborCost != null ? Number(inspection.laborCost) : 0;
+    const transportationCost = inspection.transportationCost != null ? Number(inspection.transportationCost) : 0;
+    const estimatedTotal = inspection.estimatedCost != null ? Number(inspection.estimatedCost) : materialCost + laborCost + transportationCost;
+
+    ensureSpace(700);
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(NAVY).text('Cost Estimate', PAGE_LEFT, py);
+    doc.fillColor('#000000');
+    py += 18;
+    doc.font('Helvetica').fontSize(10);
+    doc.text(`Material Cost: $${materialCost.toFixed(2)}`, PAGE_LEFT, py);
+    py += 14;
+    doc.text(`Labor Cost: $${laborCost.toFixed(2)}`, PAGE_LEFT, py);
+    py += 14;
+    doc.text(`Transportation: $${transportationCost.toFixed(2)}`, PAGE_LEFT, py);
+    py += 18;
+
+    ensureSpace(720);
+    doc.rect(PAGE_LEFT, py, PAGE_WIDTH, 26).fillColor('#F3F4F6').fill();
+    doc.fillColor(NAVY).font('Helvetica-Bold').fontSize(12);
+    doc.text('Estimated Total', PAGE_LEFT + 10, py + 7);
+    doc.text(`$${estimatedTotal.toFixed(2)}`, PAGE_LEFT, py + 7, { width: PAGE_WIDTH - 10, align: 'right' });
+    doc.fillColor('#000000');
+    py += 34;
 
     doc.end();
   });

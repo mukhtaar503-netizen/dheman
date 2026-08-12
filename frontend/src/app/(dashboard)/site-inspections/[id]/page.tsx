@@ -52,6 +52,12 @@ function computeArea(height?: number | string | null, width?: number | string | 
   return Math.round(h * w * 100) / 100;
 }
 
+/** One shared date/time format for the whole page — matches the PDF report's "M/D/YYYY, h:mm AM/PM" style. */
+function formatDateTime(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
 interface InspectionDetail extends SiteInspection {
   serviceRequest?: { id: string; referenceNo: string; title?: string | null; customer?: { fullName: string }; serviceCategory?: { name: string } };
 }
@@ -62,6 +68,37 @@ function Field({ label, value }: { label: string; value?: React.ReactNode }) {
     <div>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm">{value ?? '—'}</p>
+    </div>
+  );
+}
+
+/** Read-only report table — mirrors the PDF's 4-column Measurements/Materials/Labor layout
+ *  exactly (first column left-aligned, the other three right-aligned) so the two never drift. */
+function ReportTable({ headers, rows }: { headers: [string, string, string, string]; rows: [React.ReactNode, React.ReactNode, React.ReactNode, React.ReactNode][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-xs text-muted-foreground">
+            {headers.map((h, i) => (
+              <th key={h} className={`py-1.5 font-medium ${i === 0 ? 'text-left' : 'text-right'}`}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-b border-border/60 last:border-0">
+              {row.map((cell, j) => (
+                <td key={j} className={`py-1.5 ${j === 0 ? 'text-left' : 'text-right'}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -269,13 +306,16 @@ export default function SiteInspectionDetailPage() {
     secondaryItems.push({ label: 'Print Report', icon: Printer, onClick: handlePrint });
   }
 
+  // Each step shows only a timestamp it actually has a distinct, accurate source field for —
+  // "In Progress" has no dedicated timestamp field on the record, so it intentionally shows none
+  // rather than reusing updatedAt (which would duplicate whatever "Scheduled"/"Completed" show).
   const statusSteps: { key: string; label: string; at: string | null; done: boolean }[] = [
     { key: 'registered', label: 'Registered', at: inspection.createdAt, done: true },
-    { key: 'scheduled', label: 'Scheduled', at: inspection.status !== 'PENDING' ? inspection.updatedAt : null, done: inspection.status !== 'PENDING' },
+    { key: 'scheduled', label: 'Scheduled', at: inspection.status !== 'PENDING' ? inspection.scheduledAt : null, done: inspection.status !== 'PENDING' },
     {
       key: 'in_progress',
       label: 'In Progress',
-      at: inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED' ? inspection.updatedAt : null,
+      at: null,
       done: inspection.status === 'IN_PROGRESS' || inspection.status === 'COMPLETED',
     },
     { key: 'completed', label: 'Completed', at: inspection.submittedAt ?? null, done: inspection.status === 'COMPLETED' },
@@ -289,6 +329,7 @@ export default function SiteInspectionDetailPage() {
   const laborCostLive = labor.reduce((sum, l) => sum + (Number(l.cost) || 0), 0);
   const transportationCostLive = Number(transportationCost) || 0;
   const estimatedTotalLive = materialCostLive + laborCostLive + transportationCostLive;
+  const totalAreaLive = measurements.reduce((sum, m) => sum + (Number(m.area) || 0), 0);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -331,43 +372,52 @@ export default function SiteInspectionDetailPage() {
       </div>
 
       <Card>
-        <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        <SectionHeader title="Basic Information" />
+        <CardContent className="grid grid-cols-2 gap-3 p-4 pt-0 sm:grid-cols-4">
           <Field label="Service" value={inspection.serviceRequest?.serviceCategory?.name} />
           <Field label="Inspector" value={inspection.inspector?.fullName} />
-          <Field label="Scheduled" value={new Date(inspection.scheduledAt).toLocaleString()} />
-          <Field label="Completed" value={inspection.submittedAt ? new Date(inspection.submittedAt).toLocaleString() : undefined} />
+          <Field label="Scheduled" value={formatDateTime(inspection.scheduledAt)} />
+          {inspection.submittedAt && <Field label="Completed" value={formatDateTime(inspection.submittedAt)} />}
         </CardContent>
       </Card>
 
       <Card>
         <SectionHeader title="Site" />
-        <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-3">
-          <div className="space-y-1 sm:col-span-3">
-            <Label htmlFor="siteAddress" className="text-xs">
-              Address
-            </Label>
-            <Input
-              id="siteAddress"
-              className="h-8 text-sm"
-              disabled={isLocked}
-              value={siteAddress}
-              onChange={(e) => setSiteAddress(e.target.value)}
-              placeholder="e.g. Villa 12, Al Nahda"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="city" className="text-xs">
-              City
-            </Label>
-            <Input id="city" className="h-8 text-sm" disabled={isLocked} value={city} onChange={(e) => setCity(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="region" className="text-xs">
-              Region
-            </Label>
-            <Input id="region" className="h-8 text-sm" disabled={isLocked} value={region} onChange={(e) => setRegion(e.target.value)} />
-          </div>
-        </CardContent>
+        {isLocked ? (
+          <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-3">
+            {siteAddress && <Field label="Address" value={siteAddress} />}
+            {city && <Field label="City" value={city} />}
+            {region && <Field label="Region" value={region} />}
+            {!siteAddress && !city && !region && <p className="text-sm text-muted-foreground">No site information recorded.</p>}
+          </CardContent>
+        ) : (
+          <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-3">
+            <div className="space-y-1 sm:col-span-3">
+              <Label htmlFor="siteAddress" className="text-xs">
+                Address
+              </Label>
+              <Input
+                id="siteAddress"
+                className="h-8 text-sm"
+                value={siteAddress}
+                onChange={(e) => setSiteAddress(e.target.value)}
+                placeholder="e.g. Villa 12, Al Nahda"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="city" className="text-xs">
+                City
+              </Label>
+              <Input id="city" className="h-8 text-sm" value={city} onChange={(e) => setCity(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="region" className="text-xs">
+                Region
+              </Label>
+              <Input id="region" className="h-8 text-sm" value={region} onChange={(e) => setRegion(e.target.value)} />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       <Card>
@@ -382,17 +432,29 @@ export default function SiteInspectionDetailPage() {
           }
         />
         <CardContent className="space-y-2 p-4 pt-0">
-          {measurements.length === 0 && <p className="text-sm text-muted-foreground">No measurements recorded.</p>}
-          {measurements.length > 0 && (
-            <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
-              <span>Item</span>
-              <span>Height (m)</span>
-              <span>Width (m)</span>
-              <span>Area (m²)</span>
-              <span />
-            </div>
-          )}
-          {measurements.map((m, i) => (
+          {measurements.length === 0 && <p className="text-sm text-muted-foreground">No measurements added.</p>}
+          {isLocked ? (
+            measurements.length > 0 && (
+              <>
+                <ReportTable
+                  headers={['Item', 'Height (m)', 'Width (m)', 'Area (m²)']}
+                  rows={measurements.map((m) => [m.label, m.height ?? '—', m.width ?? '—', m.area != null ? Number(m.area).toFixed(2) : '—'])}
+                />
+                <p className="pt-1 text-right text-sm font-semibold">Total Area: {totalAreaLive.toFixed(2)} m²</p>
+              </>
+            )
+          ) : (
+            <>
+              {measurements.length > 0 && (
+                <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
+                  <span>Item</span>
+                  <span>Height (m)</span>
+                  <span>Width (m)</span>
+                  <span>Area (m²)</span>
+                  <span />
+                </div>
+              )}
+              {measurements.map((m, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_2rem] sm:items-center">
               <div className="col-span-2 space-y-1 sm:col-span-1 sm:space-y-0">
                 <Label htmlFor={`measurement-item-${i}`} className="text-xs sm:hidden">
@@ -465,7 +527,9 @@ export default function SiteInspectionDetailPage() {
                 </Button>
               )}
             </div>
-          ))}
+              ))}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -482,16 +546,25 @@ export default function SiteInspectionDetailPage() {
         />
         <CardContent className="space-y-2 p-4 pt-0">
           {materials.length === 0 && <p className="text-sm text-muted-foreground">No materials added.</p>}
-          {materials.length > 0 && (
-            <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
-              <span>Material Name</span>
-              <span>Quantity</span>
-              <span>Unit</span>
-              <span>Cost</span>
-              <span />
-            </div>
-          )}
-          {materials.map((row, i) => (
+          {isLocked ? (
+            materials.length > 0 && (
+              <ReportTable
+                headers={['Material Name', 'Quantity', 'Unit', 'Cost']}
+                rows={materials.map((row) => [row.material, row.quantity || '—', row.unit || '—', `$${(Number(row.estimatedCost) || 0).toFixed(2)}`])}
+              />
+            )
+          ) : (
+            <>
+              {materials.length > 0 && (
+                <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
+                  <span>Material Name</span>
+                  <span>Quantity</span>
+                  <span>Unit</span>
+                  <span>Cost</span>
+                  <span />
+                </div>
+              )}
+              {materials.map((row, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_2rem] sm:items-center">
               <div className="col-span-2 space-y-1 sm:col-span-1 sm:space-y-0">
                 <Label htmlFor={`material-name-${i}`} className="text-xs sm:hidden">
@@ -567,7 +640,9 @@ export default function SiteInspectionDetailPage() {
                 </Button>
               )}
             </div>
-          ))}
+              ))}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -584,16 +659,25 @@ export default function SiteInspectionDetailPage() {
         />
         <CardContent className="space-y-2 p-4 pt-0">
           {labor.length === 0 && <p className="text-sm text-muted-foreground">No labor added.</p>}
-          {labor.length > 0 && (
-            <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
-              <span>Work Type</span>
-              <span>Workers</span>
-              <span>Days</span>
-              <span>Cost</span>
-              <span />
-            </div>
-          )}
-          {labor.map((row, i) => (
+          {isLocked ? (
+            labor.length > 0 && (
+              <ReportTable
+                headers={['Work Type', 'Workers', 'Days', 'Cost']}
+                rows={labor.map((row) => [row.task, row.workers ?? '—', row.days ?? '—', `$${(Number(row.cost) || 0).toFixed(2)}`])}
+              />
+            )
+          ) : (
+            <>
+              {labor.length > 0 && (
+                <div className="hidden gap-2 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_2rem]">
+                  <span>Work Type</span>
+                  <span>Workers</span>
+                  <span>Days</span>
+                  <span>Cost</span>
+                  <span />
+                </div>
+              )}
+              {labor.map((row, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_2rem] sm:items-center">
               <div className="col-span-2 space-y-1 sm:col-span-1 sm:space-y-0">
                 <Label htmlFor={`labor-task-${i}`} className="text-xs sm:hidden">
@@ -662,7 +746,9 @@ export default function SiteInspectionDetailPage() {
                 </Button>
               )}
             </div>
-          ))}
+              ))}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -672,20 +758,23 @@ export default function SiteInspectionDetailPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Material Cost" value={`$${materialCostLive.toFixed(2)}`} />
             <Field label="Labor Cost" value={`$${laborCostLive.toFixed(2)}`} />
-            <div className="space-y-1">
-              <Label htmlFor="transportationCost" className="text-xs">
-                Transportation
-              </Label>
-              <Input
-                id="transportationCost"
-                type="number"
-                className="h-9 text-sm"
-                placeholder="0.00"
-                disabled={isLocked}
-                value={transportationCost}
-                onChange={(e) => setTransportationCost(e.target.value)}
-              />
-            </div>
+            {isLocked ? (
+              <Field label="Transportation" value={`$${transportationCostLive.toFixed(2)}`} />
+            ) : (
+              <div className="space-y-1">
+                <Label htmlFor="transportationCost" className="text-xs">
+                  Transportation
+                </Label>
+                <Input
+                  id="transportationCost"
+                  type="number"
+                  className="h-9 text-sm"
+                  placeholder="0.00"
+                  value={transportationCost}
+                  onChange={(e) => setTransportationCost(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-md border border-border bg-muted/30 px-4 py-3">
@@ -695,6 +784,7 @@ export default function SiteInspectionDetailPage() {
         </CardContent>
       </Card>
 
+      {(!isLocked || (inspection.photos && inspection.photos.length > 0)) && (
       <Card>
         <SectionHeader title="Attachments" />
         <CardContent className="space-y-3 p-4 pt-0">
@@ -743,9 +833,10 @@ export default function SiteInspectionDetailPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       <Card>
-        <SectionHeader title="Status" />
+        <SectionHeader title="Status History" />
         <CardContent className="p-4 pt-0">
           <div className="flex items-start">
             {statusSteps.map((step, i) => (
@@ -753,14 +844,14 @@ export default function SiteInspectionDetailPage() {
                 <div className="flex w-20 flex-col items-center gap-1 text-center">
                   <span className={`h-2 w-2 rounded-full ${step.done ? 'bg-primary' : 'bg-muted'}`} />
                   <span className="text-xs font-medium">{step.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{step.at ? new Date(step.at).toLocaleDateString() : '—'}</span>
+                  <span className="text-[10px] text-muted-foreground">{step.done && step.at ? formatDateTime(step.at) : '—'}</span>
                 </div>
                 {i < statusSteps.length - 1 && <div className={`mt-1 h-px flex-1 ${step.done ? 'bg-primary' : 'bg-muted'}`} />}
               </React.Fragment>
             ))}
           </div>
           {inspection.status === 'CANCELLED' && (
-            <p className="mt-3 text-xs text-destructive">Cancelled on {new Date(inspection.updatedAt).toLocaleString()}</p>
+            <p className="mt-3 text-xs text-destructive">Cancelled on {formatDateTime(inspection.updatedAt)}</p>
           )}
         </CardContent>
       </Card>
