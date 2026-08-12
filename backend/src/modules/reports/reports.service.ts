@@ -23,7 +23,13 @@ export async function getRevenueReport(from: Date, to: Date, granularity: 'day' 
 export async function getProjectProfitabilityReport(filters: { projectId?: string }) {
   const projects = await prisma.project.findMany({
     where: filters.projectId ? { id: filters.projectId } : { status: { in: [ProjectStatus.COMPLETED, ProjectStatus.CLOSED] } },
-    include: { invoices: true, expenses: { where: { status: ExpenseStatus.APPROVED } }, customer: { select: { fullName: true } } },
+    select: {
+      id: true,
+      projectNo: true,
+      customer: { select: { fullName: true } },
+      invoices: { select: { status: true, total: true } },
+      expenses: { where: { status: ExpenseStatus.APPROVED }, select: { amount: true } },
+    },
   });
 
   return projects.map((project) => {
@@ -53,7 +59,7 @@ export async function getTechnicianProductivityReport() {
 export async function getOutstandingReceivablesReport() {
   const invoices = await prisma.invoice.findMany({
     where: { status: { in: [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE] } },
-    include: { customer: { select: { fullName: true } } },
+    select: { invoiceNo: true, total: true, balance: true, dueDate: true, customer: { select: { fullName: true } } },
     orderBy: { dueDate: 'asc' },
   });
   const now = Date.now();

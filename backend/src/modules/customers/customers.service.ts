@@ -211,7 +211,7 @@ export async function listCustomers(filters: ListCustomersFilters) {
     const orderedIds = grouped.map((g) => g.customerId);
     const zeroRevenueIds = matchingIds.filter((id) => !orderedIds.includes(id));
     const pageIds = [...orderedIds, ...zeroRevenueIds].slice(0, filters.pageSize);
-    const rows = await prisma.customer.findMany({ where: { id: { in: pageIds } }, include: { siteAddresses: true } });
+    const rows = await prisma.customer.findMany({ where: { id: { in: pageIds } } });
     const byId = new Map(rows.map((r) => [r.id, r]));
     const items = pageIds.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r));
     return { items, total, page: filters.page, pageSize: filters.pageSize };
@@ -227,12 +227,14 @@ export async function listCustomers(filters: ListCustomersFilters) {
           : { createdAt: 'desc' };
 
   const [items, total] = await Promise.all([
+    // The list page and every picker/dropdown that calls this only ever read the customer's
+    // own scalar fields (code/name/company/phone/email/type/status) — siteAddresses is a
+    // detail-page-only relation (see getCustomerById), so it's deliberately not included here.
     prisma.customer.findMany({
       where,
       orderBy,
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
-      include: { siteAddresses: true },
     }),
     prisma.customer.count({ where }),
   ]);

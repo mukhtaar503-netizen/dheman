@@ -40,6 +40,7 @@ export async function listTasks(filters: { projectId?: string; technicianId?: st
     },
     include: { assignments: { include: { technician: { select: { id: true, fullName: true } } } }, project: { select: { projectNo: true } } },
     orderBy: { dueDate: 'asc' },
+    take: 200, // defensive bound — this endpoint has no pagination UI; a call with no filters at all should not return the whole table
   });
 }
 

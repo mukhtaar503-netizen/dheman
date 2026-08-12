@@ -4,15 +4,40 @@ import type { Decimal } from '@prisma/client/runtime/library';
 import { getSettings } from '@/modules/settings/settings.service';
 import { NAVY, ORANGE, GRAY, LIGHT_BORDER, PAGE_LEFT, PAGE_RIGHT, PAGE_WIDTH, resolveLogoBuffer, drawBrandHeader, attachBrandFooter } from '@/lib/pdf-branding';
 
-type QuotationForPdf = Prisma.QuotationGetPayload<{
-  include: {
-    customer: true;
-    serviceRequest: { include: { serviceCategory: true; service: true } };
-    siteInspection: true;
-    lineItems: true;
-    createdBy: { select: { id: true; fullName: true } };
-  };
-}>;
+// Select exactly the fields this PDF renders below — not the full Customer/ServiceRequest/
+// LineItem rows a plain `include: { ...: true }` would pull in.
+export const QUOTATION_PDF_SELECT = {
+  quotationNo: true,
+  createdAt: true,
+  validUntil: true,
+  status: true,
+  title: true,
+  description: true,
+  materialCost: true,
+  laborCost: true,
+  transportationCost: true,
+  subtotal: true,
+  discountType: true,
+  discountValue: true,
+  discountAmount: true,
+  taxRatePercent: true,
+  taxAmount: true,
+  total: true,
+  termsAndConditions: true,
+  createdBy: { select: { id: true, fullName: true } },
+  customer: { select: { companyName: true, fullName: true, email: true, phone: true } },
+  serviceRequest: {
+    select: {
+      projectLocation: true,
+      serviceCategory: { select: { name: true } },
+      service: { select: { serviceName: true } },
+    },
+  },
+  siteInspection: { select: { id: true, scheduledAt: true } },
+  lineItems: { select: { itemName: true, description: true, quantity: true, unit: true, unitPrice: true, subtotal: true, category: true } },
+} satisfies Prisma.QuotationSelect;
+
+type QuotationForPdf = Prisma.QuotationGetPayload<{ select: typeof QUOTATION_PDF_SELECT }>;
 
 const CATEGORY_LABEL: Record<string, string> = {
   MATERIAL: 'Material',

@@ -66,6 +66,7 @@ export async function listPayments(filters: { invoiceId?: string; customerId?: s
   return prisma.payment.findMany({
     where: { ...(filters.invoiceId ? { invoiceId: filters.invoiceId } : {}), ...(filters.customerId ? { customerId: filters.customerId } : {}) },
     orderBy: { paidAt: 'desc' },
+    take: 200, // defensive bound — this endpoint has no pagination UI; a call with no filters at all should not return the whole table
   });
 }
 

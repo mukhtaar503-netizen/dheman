@@ -66,9 +66,11 @@ export async function listInvoices(filters: { projectId?: string; customerId?: s
     ...(filters.status ? { status: filters.status } : {}),
   };
   const [items, total] = await Promise.all([
+    // The invoices list page and the record-payment picker only read the invoice's own scalar
+    // fields (invoiceNo/total/balance/status/dueDate) — lineItems is a detail-page-only relation
+    // (see getInvoiceById), so it's deliberately not included here.
     prisma.invoice.findMany({
       where,
-      include: { lineItems: true },
       orderBy: { issueDate: 'desc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,

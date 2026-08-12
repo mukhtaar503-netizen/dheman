@@ -7,7 +7,7 @@ import { sendMail } from '@/lib/mailer';
 import { generateReferenceNumber } from '@/utils/numbering';
 import { getSettings } from '@/modules/settings/settings.service';
 import { AuthUser } from '@/middleware/auth';
-import { generateQuotationPdf } from './quotations.pdf.service';
+import { generateQuotationPdf, QUOTATION_PDF_SELECT } from './quotations.pdf.service';
 
 interface LineItemInput {
   serviceCategoryId?: string;
@@ -640,16 +640,7 @@ export async function expireOverdueQuotations() {
 // ── PDF & Email ──────────────────────────────────────────────────────────────
 
 export async function getQuotationPdfBuffer(id: string) {
-  const quotation = await prisma.quotation.findUnique({
-    where: { id },
-    include: {
-      customer: true,
-      serviceRequest: { include: { serviceCategory: true, service: true } },
-      siteInspection: true,
-      lineItems: true,
-      createdBy: { select: { id: true, fullName: true } },
-    },
-  });
+  const quotation = await prisma.quotation.findUnique({ where: { id }, select: QUOTATION_PDF_SELECT });
   if (!quotation) throw HttpError.notFound('Quotation not found');
   return { quotation, pdf: await generateQuotationPdf(quotation) };
 }

@@ -123,14 +123,33 @@ export async function getSchedule(filters: { from: Date; to: Date; technicianId?
         scheduledAt: { gte: filters.from, lte: filters.to },
         ...(filters.technicianId ? { inspectorId: filters.technicianId } : {}),
       },
-      include: { serviceRequest: { include: { customer: true } }, inspector: { select: { id: true, fullName: true } } },
+      select: {
+        id: true,
+        inspectionNo: true,
+        status: true,
+        scheduledAt: true,
+        serviceRequest: { select: { referenceNo: true, customer: { select: { id: true, fullName: true } } } },
+        inspector: { select: { id: true, fullName: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 500, // a calendar view — bounded defensively against an unreasonably wide date range
     }),
     prisma.task.findMany({
       where: {
         dueDate: { gte: filters.from, lte: filters.to },
         ...(filters.technicianId ? { assignments: { some: { technicianId: filters.technicianId } } } : {}),
       },
-      include: { assignments: { include: { technician: { select: { id: true, fullName: true } } } }, project: { select: { projectNo: true } } },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        assignments: { select: { technician: { select: { id: true, fullName: true } } } },
+        project: { select: { projectNo: true } },
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 500,
     }),
   ]);
 
