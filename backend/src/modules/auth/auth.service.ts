@@ -105,6 +105,17 @@ export async function login(input: LoginInput, context?: SessionContext) {
   return { user: sanitizeUser(user), ...tokens };
 }
 
+/** GET /auth/me — req.user only carries the JWT's own claims (id/role/email), so this re-fetches
+ *  the full profile (fullName, status, ...) the frontend's AuthUser type actually expects. */
+export async function getCurrentUser(id: string) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, fullName: true, role: true, status: true },
+  });
+  if (!user) throw HttpError.unauthorized('User not found');
+  return user;
+}
+
 export async function refreshTokens(refreshToken: string, context?: SessionContext) {
   const tokenHash = hashToken(refreshToken);
   const stored = await prisma.refreshToken.findUnique({

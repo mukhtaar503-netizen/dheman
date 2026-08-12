@@ -1,9 +1,9 @@
-import { ExpenseStatus, InvoiceStatus, ProjectStatus, QuotationStatus, Role, ServiceRequestStatus, TaskStatus, UserStatus } from '@prisma/client';
+import { InvoiceStatus, ProjectStatus, QuotationStatus, Role, ServiceRequestStatus, TaskStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { AuthUser } from '@/middleware/auth';
-import { percentChange, resolveDateRange, DateRangePreset } from '@/utils/date-range';
+import { resolveDateRange, DateRangePreset } from '@/utils/date-range';
 import { getTechnicianProductivity } from '@/modules/technicians/technicians.service';
-import { getCustomerSatisfactionReport } from '@/modules/reports/reports.service';
+import { ACTIVE_PROJECT_STATUSES } from '@/config/project-status-groups';
 
 export interface RangeQuery {
   range: DateRangePreset;
@@ -20,15 +20,13 @@ async function sumPayments(from: Date, to: Date) {
   return Number(result._sum.amount ?? 0);
 }
 
-async function sumApprovedExpenses(from: Date, to: Date) {
-  const result = await prisma.expense.aggregate({ _sum: { amount: true }, where: { status: ExpenseStatus.APPROVED, date: { gte: from, lte: to } } });
-  return Number(result._sum.amount ?? 0);
-}
-
-/** KPI Cards + Performance Metrics for the dashboard overview (Section "Dashboard Overview" / "Performance Metrics"). */
+/**
+ * Simplified Dashboard summary — the 6 core business counters + latest 5 activity events, in
+ * one call. Only Monthly Revenue is period-scoped (Today/This Month/This Year); the counters
+ * are current snapshots so the date filter doesn't need to touch them at all. Technicians get
+ * their own minimal (3-card) view, unrelated to the business KPIs below.
+ */
 export async function getSummary(user: AuthUser, query: RangeQuery) {
-  const { from, to, previousFrom, previousTo } = resolveDateRange(query.range, query.from, query.to);
-
   if (user.role === Role.TECHNICIAN) {
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
     const todayEnd = new Date(new Date().setHours(23, 59, 59, 999));
@@ -49,74 +47,31 @@ export async function getSummary(user: AuthUser, query: RangeQuery) {
     };
   }
 
-  const [
-    totalCustomers, totalCustomersPrev,
-    activeProjects, activeProjectsPrev,
-    pendingServiceRequests,
-    pendingQuotations,
-    completedProjects, completedProjectsPrev,
-    activeTechnicians,
-    monthlyRevenue, monthlyRevenuePrev,
-    pendingPaymentsAgg,
-    monthlyExpenses,
-    completionRateAgg,
-    satisfaction,
-    avgDurationAgg,
-  ] = await Promise.all([
-    prisma.customer.count({ where: { status: 'ACTIVE', createdAt: { lte: to } } }),
-    prisma.customer.count({ where: { status: 'ACTIVE', createdAt: { lte: previousTo } } }),
-    prisma.project.count({ where: { status: { notIn: [ProjectStatus.CLOSED, ProjectStatus.CANCELLED] }, createdAt: { lte: to } } }),
-    prisma.project.count({ where: { status: { notIn: [ProjectStatus.CLOSED, ProjectStatus.CANCELLED] }, createdAt: { lte: previousTo } } }),
-    prisma.serviceRequest.count({ where: { status: { in: [ServiceRequestStatus.NEW, ServiceRequestStatus.UNDER_REVIEW, ServiceRequestStatus.SITE_INSPECTION_SCHEDULED] } } }),
+  const { from, to } = resolveDateRange(query.range, query.from, query.to);
+
+  const [customers, activeProjects, pendingRequests, pendingQuotations, pendingPayments, monthlyRevenue, activity] = await Promise.all([
+    prisma.customer.count(),
+    prisma.project.count({ where: { status: { in: ACTIVE_PROJECT_STATUSES } } }),
+    prisma.serviceRequest.count({
+      where: { status: { in: [ServiceRequestStatus.NEW, ServiceRequestStatus.UNDER_REVIEW, ServiceRequestStatus.SITE_INSPECTION_SCHEDULED] } },
+    }),
     prisma.quotation.count({ where: { status: QuotationStatus.SENT } }),
-    prisma.project.count({ where: { status: ProjectStatus.COMPLETED, actualEndDate: { gte: from, lte: to } } }),
-    prisma.project.count({ where: { status: ProjectStatus.COMPLETED, actualEndDate: { gte: previousFrom, lte: previousTo } } }),
-    prisma.technicianProfile.count({ where: { status: UserStatus.ACTIVE } }),
+    prisma.invoice.count({ where: { status: { in: [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE] } } }),
     sumPayments(from, to),
-    sumPayments(previousFrom, previousTo),
-    prisma.invoice.aggregate({ _sum: { balance: true }, _count: true, where: { status: { in: [InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE] } } }),
-    sumApprovedExpenses(from, to),
-    prisma.project.groupBy({ by: ['status'], _count: true }),
-    getCustomerSatisfactionReport(),
-    prisma.$queryRaw<{ avg_days: number | null }[]>`
-      SELECT AVG(EXTRACT(EPOCH FROM ("actualEndDate" - "startDate")) / 86400) AS avg_days
-      FROM "Project"
-      WHERE "actualEndDate" IS NOT NULL AND "startDate" IS NOT NULL
-    `,
+    getActivityFeed(1, 5),
   ]);
 
-  const totalProjectsForRate = completionRateAgg.reduce((sum, g) => sum + g._count, 0);
-  const closedOrCompleted = completionRateAgg
-    .filter((g) => g.status === ProjectStatus.COMPLETED || g.status === ProjectStatus.CLOSED)
-    .reduce((sum, g) => sum + g._count, 0);
-  const completionRatePercent = totalProjectsForRate > 0 ? round2((closedOrCompleted / totalProjectsForRate) * 100) : null;
-
-  const averageProjectDurationDays = avgDurationAgg[0]?.avg_days != null ? round2(Number(avgDurationAgg[0].avg_days)) : null;
-
-  const netProfit = round2(monthlyRevenue - monthlyExpenses);
-
-  const cards = [
-    { key: 'totalCustomers', label: 'Total Customers', value: totalCustomers, previousValue: totalCustomersPrev, percentChange: percentChange(totalCustomers, totalCustomersPrev), href: '/customers' },
-    { key: 'activeProjects', label: 'Active Projects', value: activeProjects, previousValue: activeProjectsPrev, percentChange: percentChange(activeProjects, activeProjectsPrev), href: '/projects' },
-    { key: 'pendingServiceRequests', label: 'Pending Service Requests', value: pendingServiceRequests, href: '/service-requests' },
-    { key: 'pendingQuotations', label: 'Pending Quotations', value: pendingQuotations, href: '/quotations' },
-    { key: 'monthlyRevenue', label: 'Monthly Revenue (USD)', value: monthlyRevenue, previousValue: monthlyRevenuePrev, percentChange: percentChange(monthlyRevenue, monthlyRevenuePrev), format: 'currency', href: '/reports/revenue' },
-    { key: 'completedProjects', label: 'Completed Projects', value: completedProjects, previousValue: completedProjectsPrev, percentChange: percentChange(completedProjects, completedProjectsPrev), href: '/projects?status=COMPLETED' },
-    { key: 'pendingPayments', label: 'Pending Payments', value: pendingPaymentsAgg._count, secondaryValue: round2(Number(pendingPaymentsAgg._sum.balance ?? 0)), format: 'currency-count', href: '/invoices' },
-    { key: 'activeTechnicians', label: 'Active Technicians', value: activeTechnicians, href: '/technicians' },
-  ];
-
-  const performance = {
+  return {
+    role: user.role,
+    range: { from, to },
+    customers,
+    activeProjects,
+    pendingRequests,
+    pendingQuotations,
+    pendingPayments,
     monthlyRevenue,
-    monthlyExpenses,
-    netProfit,
-    projectCompletionRatePercent: completionRatePercent,
-    averageProjectDurationDays,
-    customerSatisfactionAverage: satisfaction.averageRating,
-    outstandingBalance: round2(Number(pendingPaymentsAgg._sum.balance ?? 0)),
+    recentActivity: activity.items,
   };
-
-  return { role: user.role, range: { from, to }, cards, performance };
 }
 
 /** Revenue Analytics — Area Chart series. Bucketed in SQL (date_trunc) rather than pulling every Payment row into Node. */

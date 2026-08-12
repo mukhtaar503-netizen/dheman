@@ -187,7 +187,17 @@ export interface PerformanceMetrics {
 export interface DashboardSummary {
   role: Role;
   range?: { from: string; to: string };
-  cards: KpiCard[];
+  // Simplified business-view fields (all roles except Technician) — one summary call covers
+  // the 6 core counters plus the latest 5 activity events.
+  customers?: number;
+  activeProjects?: number;
+  pendingRequests?: number;
+  pendingQuotations?: number;
+  pendingPayments?: number;
+  monthlyRevenue?: number;
+  recentActivity?: ActivityItem[];
+  // Technician-only fields — a separate, already-minimal 3-card view (see dashboard.service.ts).
+  cards?: KpiCard[];
   performance?: PerformanceMetrics;
 }
 

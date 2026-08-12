@@ -1,8 +1,9 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { UserPlus, FolderPlus, ClipboardPlus, FileText, Receipt, Wrench, Wallet, ReceiptText } from 'lucide-react';
+import { UserPlus, ClipboardPlus, ClipboardCheck, FileText, Wallet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -14,33 +15,36 @@ import { cn } from '@/lib/utils';
 // component's props) so the button never flickers/disappears while its chunk loads.
 const CreateCustomerDialog = dynamic(() => import('./create-customer-dialog').then((m) => m.CreateCustomerDialog), {
   ssr: false,
-  loading: () => <ActionButton icon={UserPlus} label="Create Customer" />,
+  loading: () => <ActionButton icon={UserPlus} label="New Customer" />,
 });
 const CreateServiceRequestDialog = dynamic(() => import('./create-service-request-dialog').then((m) => m.CreateServiceRequestDialog), {
   ssr: false,
-  loading: () => <ActionButton icon={ClipboardPlus} label="Create Service Request" />,
+  loading: () => <ActionButton icon={ClipboardPlus} label="New Service Request" />,
 });
 const RecordPaymentDialog = dynamic(() => import('./record-payment-dialog').then((m) => m.RecordPaymentDialog), {
   ssr: false,
   loading: () => <ActionButton icon={Wallet} label="Record Payment" />,
-});
-const AddExpenseDialog = dynamic(() => import('./add-expense-dialog').then((m) => m.AddExpenseDialog), {
-  ssr: false,
-  loading: () => <ActionButton icon={ReceiptText} label="Add Expense" />,
 });
 
 const actionButtonClasses = cn(
   'flex h-auto flex-col items-center gap-2 rounded-md border border-border py-4 text-xs transition-colors hover:bg-muted',
 );
 
-function ActionButton({ icon: Icon, label }: { icon: React.ComponentType<{ className?: string }>; label: string }) {
+// forwardRef + prop-spreading is required here: Radix's `DialogTrigger asChild` clones this
+// element to inject onClick/ref/aria-* (so clicking it opens the dialog) — a wrapper that drops
+// those props silently breaks the trigger without throwing, since Button itself never receives them.
+const ActionButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { icon: React.ComponentType<{ className?: string }>; label: string }
+>(({ icon: Icon, label, ...props }, ref) => {
   return (
-    <Button variant="outline" className="h-auto w-full flex-col gap-2 py-4">
+    <Button variant="outline" className="h-auto w-full flex-col gap-2 py-4" ref={ref} {...props}>
       <Icon className="h-5 w-5" />
       <span className="text-xs font-normal">{label}</span>
     </Button>
   );
-}
+});
+ActionButton.displayName = 'ActionButton';
 
 function ActionLink({ href, icon: Icon, label }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
   return (
@@ -57,18 +61,12 @@ export function QuickActions() {
       <CardHeader>
         <CardTitle>Quick Actions</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <CreateCustomerDialog trigger={<ActionButton icon={UserPlus} label="Create Customer" />} />
-        <CreateServiceRequestDialog trigger={<ActionButton icon={ClipboardPlus} label="Create Service Request" />} />
+      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <CreateCustomerDialog trigger={<ActionButton icon={UserPlus} label="New Customer" />} />
+        <CreateServiceRequestDialog trigger={<ActionButton icon={ClipboardPlus} label="New Service Request" />} />
+        <ActionLink href="/site-inspections/new" icon={ClipboardCheck} label="New Site Inspection" />
+        <ActionLink href="/quotations/new" icon={FileText} label="New Quotation" />
         <RecordPaymentDialog trigger={<ActionButton icon={Wallet} label="Record Payment" />} />
-        <AddExpenseDialog trigger={<ActionButton icon={ReceiptText} label="Add Expense" />} />
-
-        {/* These require selecting a parent record first (an Approved Quotation, a Project, etc.)
-            so the quick action shortcuts to the module where that selection naturally happens. */}
-        <ActionLink href="/quotations" icon={FolderPlus} label="Create Project" />
-        <ActionLink href="/service-requests" icon={FileText} label="Create Quotation" />
-        <ActionLink href="/projects" icon={Receipt} label="Create Invoice" />
-        <ActionLink href="/technicians" icon={Wrench} label="Assign Technician" />
       </CardContent>
     </Card>
   );

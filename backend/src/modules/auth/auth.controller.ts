@@ -41,7 +41,8 @@ export async function changePassword(req: Request, res: Response) {
 }
 
 export async function me(req: Request, res: Response) {
-  res.status(200).json({ user: req.user });
+  const user = await authService.getCurrentUser(req.user!.id);
+  res.status(200).json({ user });
 }
 
 export async function listSessions(req: Request, res: Response) {
