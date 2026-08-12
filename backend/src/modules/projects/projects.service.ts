@@ -82,7 +82,7 @@ export async function listProjects(filters: { status?: ProjectStatus; projectMan
   const [items, total] = await Promise.all([
     prisma.project.findMany({
       where,
-      include: { customer: true, projectManager: { select: { id: true, fullName: true } } },
+      include: { customer: { select: { id: true, fullName: true } }, projectManager: { select: { id: true, fullName: true } } },
       orderBy: { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,

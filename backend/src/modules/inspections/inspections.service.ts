@@ -232,7 +232,24 @@ export async function listInspections(filters: ListInspectionsFilters) {
 export async function listCompletedInspections() {
   const inspections = await prisma.siteInspection.findMany({
     where: { status: InspectionStatus.COMPLETED },
-    include: { serviceRequest: { include: { customer: true, serviceCategory: true, service: true } } },
+    select: {
+      id: true,
+      serviceRequestId: true,
+      scheduledAt: true,
+      submittedAt: true,
+      materialCost: true,
+      laborCost: true,
+      transportationCost: true,
+      estimatedCost: true,
+      estimatedDuration: true,
+      serviceRequest: {
+        select: {
+          customer: { select: { id: true, fullName: true } },
+          serviceCategory: { select: { name: true } },
+          service: { select: { serviceName: true } },
+        },
+      },
+    },
     orderBy: { submittedAt: 'desc' },
     take: 200, // dropdown picker — bounded defensively, most-recently-completed first
   });

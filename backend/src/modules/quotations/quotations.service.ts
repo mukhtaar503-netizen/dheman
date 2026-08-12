@@ -303,10 +303,22 @@ export async function listQuotations(filters: ListQuotationsFilters) {
 
 /** INSPECTOR: view-only access to quotations tied to inspections they performed. */
 export async function listQuotationsForInspector(inspectorId: string) {
+  // The list page only reads id/quotationNo/total/status/createdAt plus customer.fullName and
+  // service/serviceCategory name — select exactly those instead of full line items + customer
+  // rows per quotation, and cap defensively since this list has no pagination UI.
   return prisma.quotation.findMany({
     where: { siteInspection: { inspectorId } },
-    include: { lineItems: true, customer: true, serviceRequest: { include: { serviceCategory: true, service: true } } },
+    select: {
+      id: true,
+      quotationNo: true,
+      total: true,
+      status: true,
+      createdAt: true,
+      customer: { select: { fullName: true } },
+      serviceRequest: { select: { service: { select: { serviceName: true } }, serviceCategory: { select: { name: true } } } },
+    },
     orderBy: { createdAt: 'desc' },
+    take: 200,
   });
 }
 
