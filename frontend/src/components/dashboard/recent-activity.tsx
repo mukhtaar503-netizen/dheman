@@ -1,7 +1,6 @@
 'use client';
 
 import { LogIn, UserPlus, FileText, CheckCircle2, Wallet } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ActivityItem, ActivityType } from '@/types';
 
 const ICONS: Record<ActivityType, React.ComponentType<{ className?: string }>> = {
@@ -26,34 +25,42 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// The backend only ever sends a single combined `description` string (e.g. "New customer
+// registered: ALloore Hotel"). Splitting it here — purely a display concern — recovers the
+// title/secondary-line layout without asking the backend for a new shape or an extra field.
+function splitDescription(description: string): { title: string; secondary?: string } {
+  const sep = description.includes(': ') ? ': ' : description.includes(' — ') ? ' — ' : null;
+  if (!sep) return { title: description };
+  const idx = description.indexOf(sep);
+  return { title: description.slice(0, idx), secondary: description.slice(idx + sep.length) };
+}
+
 /** Small, static list — the dashboard only ever shows the latest 5 events its parent already
  *  fetched as part of the single summary call. No pagination, no independent query. */
 export function RecentActivity({ items }: { items: ActivityItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <Card className="rounded-xl">
-      <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ul className="divide-y divide-border">
-          {items.map((event) => {
-            const Icon = ICONS[event.type];
-            return (
-              <li key={`${event.type}-${event.id}`} className="flex items-start gap-3 px-6 py-3">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted">
-                  <Icon className="h-3.5 w-3.5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{event.description}</p>
-                  <p className="text-xs text-muted-foreground">{relativeTime(event.at)}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <h2 className="mb-2 text-sm font-semibold">Recent Activity</h2>
+      <ul className="divide-y divide-border">
+        {items.map((event) => {
+          const Icon = ICONS[event.type];
+          const { title, secondary } = splitDescription(event.description);
+          return (
+            <li key={`${event.type}-${event.id}`} className="flex items-start gap-2.5 py-2">
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
+                <Icon className="h-3 w-3" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm leading-tight">{title}</p>
+                {secondary && <p className="truncate text-xs text-muted-foreground">{secondary}</p>}
+                <p className="text-[11px] text-muted-foreground/70">{relativeTime(event.at)}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
