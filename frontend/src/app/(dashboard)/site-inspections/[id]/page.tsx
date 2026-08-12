@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, Plus, Printer, Trash2, Upload } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Phone, Plus, Printer, Trash2, Upload, User } from 'lucide-react';
 import { api, ApiError } from '@/lib/api-client';
 import { openFileInNewTab } from '@/lib/download';
 import { useToast } from '@/hooks/use-toast';
@@ -59,7 +60,13 @@ function formatDateTime(value?: string | null): string | undefined {
 }
 
 interface InspectionDetail extends SiteInspection {
-  serviceRequest?: { id: string; referenceNo: string; title?: string | null; customer?: { fullName: string }; serviceCategory?: { name: string } };
+  serviceRequest?: {
+    id: string;
+    referenceNo: string;
+    title?: string | null;
+    customer?: { id: string; fullName: string; phone?: string | null };
+    serviceCategory?: { name: string };
+  };
 }
 
 /** Compact read-only label/value pair — used for computed or non-editable summary data. */
@@ -339,9 +346,7 @@ export default function SiteInspectionDetailPage() {
             <h1 className="text-xl font-semibold">{inspection.inspectionNo}</h1>
             <Badge variant={STATUS_VARIANT[inspection.status]}>{inspection.status.replaceAll('_', ' ')}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {inspection.serviceRequest?.referenceNo} — {inspection.serviceRequest?.customer?.fullName}
-          </p>
+          <p className="text-sm text-muted-foreground">{inspection.serviceRequest?.referenceNo}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" disabled={primaryAction.disabled || primaryAction.pending} onClick={primaryAction.onClick}>
@@ -370,6 +375,36 @@ export default function SiteInspectionDetailPage() {
           </DropdownMenu>
         </div>
       </div>
+
+      {inspection.serviceRequest?.customer && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-3 p-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                <User className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{inspection.serviceRequest.customer.fullName}</p>
+                {inspection.serviceRequest.customer.phone && (
+                  <a
+                    href={`tel:${inspection.serviceRequest.customer.phone}`}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Phone className="h-3 w-3" />
+                    {inspection.serviceRequest.customer.phone}
+                  </a>
+                )}
+              </div>
+            </div>
+            <Link
+              href={`/customers/${inspection.serviceRequest.customer.id}`}
+              className="flex shrink-0 items-center gap-0.5 text-xs font-medium text-primary hover:underline"
+            >
+              View Customer <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <SectionHeader title="Basic Information" />
