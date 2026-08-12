@@ -778,7 +778,11 @@ model Quotation {
   id                   String          @id @default(uuid())
   quotationNo          String          @unique
   serviceRequestId     String
-  siteInspectionId     String?
+  // BR-QUOTE: one Quotation per Site Inspection — enforced at the DB level (not just an
+  // app-level check) so a double-submitted create request can never insert two rows for the
+  // same inspection. NULL is exempt (Postgres unique indexes don't compare NULLs), so
+  // Quotations without an inspection link are unaffected.
+  siteInspectionId     String?         @unique
   customerId           String
   version              Int             @default(1)
   status               QuotationStatus @default(DRAFT)
@@ -822,7 +826,6 @@ model Quotation {
   project        Project?
 
   @@index([status])
-  @@index([siteInspectionId])
   @@index([customerId])
   @@index([serviceRequestId])
 }

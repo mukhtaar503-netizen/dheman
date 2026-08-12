@@ -314,6 +314,84 @@ describe('Quotation Management module (PHASE 07)', () => {
     });
   });
 
+  describe('duplicate quotation prevention (one Quotation per Site Inspection)', () => {
+    async function completedInspection() {
+      const { serviceRequest } = await createCustomerAndRequest();
+      const inspectorEmail = `qt-dup-inspector-${randomUUID()}@sms.local`;
+      const inspector = await request(app)
+        .post('/api/v1/users')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ email: inspectorEmail, fullName: 'QT Dup Inspector', password: 'Password123!', role: 'SITE_INSPECTOR' });
+      const inspectorToken = await login(inspectorEmail, 'Password123!');
+
+      const inspection = await request(app)
+        .post('/api/v1/inspections')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ serviceRequestId: serviceRequest.id, inspectorId: inspector.body.id, scheduledAt: '2026-08-01T09:00:00Z' });
+      await request(app).patch(`/api/v1/inspections/${inspection.body.id}/complete`).set('Authorization', `Bearer ${inspectorToken}`).send({});
+
+      return { serviceRequest, inspectionId: inspection.body.id as string };
+    }
+
+    it('creates successfully for a completed Site Inspection with no existing Quotation, then blocks a second one with a clear 409', async () => {
+      const { serviceRequest, inspectionId } = await completedInspection();
+
+      const prefillBefore = await request(app).get(`/api/v1/quotations/prefill/${inspectionId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(prefillBefore.status).toBe(200);
+      expect(prefillBefore.body.existingQuotation).toBeNull();
+
+      const first = await request(app)
+        .post('/api/v1/quotations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          serviceRequestId: serviceRequest.id,
+          siteInspectionId: inspectionId,
+          lineItems: [{ category: 'MATERIAL', description: 'Item', quantity: 1, unit: 'unit', unitPrice: 100 }],
+        });
+      expect(first.status).toBe(201);
+
+      const prefillAfter = await request(app).get(`/api/v1/quotations/prefill/${inspectionId}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(prefillAfter.body.existingQuotation).toMatchObject({ id: first.body.id, quotationNo: first.body.quotationNo });
+
+      const second = await request(app)
+        .post('/api/v1/quotations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          serviceRequestId: serviceRequest.id,
+          siteInspectionId: inspectionId,
+          lineItems: [{ category: 'MATERIAL', description: 'Item', quantity: 1, unit: 'unit', unitPrice: 100 }],
+        });
+      expect(second.status).toBe(409);
+      expect(second.body.error).toBe('A quotation already exists for this site inspection.');
+      expect(second.body.details).toMatchObject({ existingQuotationId: first.body.id, existingQuotationNo: first.body.quotationNo });
+
+      // No duplicate was actually written to the database — the failed create left no row behind.
+      const list = await request(app).get(`/api/v1/quotations?search=${first.body.quotationNo}`).set('Authorization', `Bearer ${adminToken}`);
+      expect(list.body.items).toHaveLength(1);
+      expect(list.body.items[0].id).toBe(first.body.id);
+    });
+
+    it('rejects two near-simultaneous create requests for the same inspection with only one succeeding', async () => {
+      const { serviceRequest, inspectionId } = await completedInspection();
+      const payload = {
+        serviceRequestId: serviceRequest.id,
+        siteInspectionId: inspectionId,
+        lineItems: [{ category: 'MATERIAL', description: 'Item', quantity: 1, unit: 'unit', unitPrice: 100 }],
+      };
+
+      const [a, b] = await Promise.all([
+        request(app).post('/api/v1/quotations').set('Authorization', `Bearer ${adminToken}`).send(payload),
+        request(app).post('/api/v1/quotations').set('Authorization', `Bearer ${adminToken}`).send(payload),
+      ]);
+
+      const statuses = [a.status, b.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      const failed = a.status === 409 ? a : b;
+      expect(failed.body.error).toBe('A quotation already exists for this site inspection.');
+      expect(failed.body.details.existingQuotationId).toBeDefined();
+    });
+  });
+
   describe('inspector view', () => {
     it('scopes the inspector view to quotations tied to inspections they performed', async () => {
       const { serviceRequest } = await createCustomerAndRequest();

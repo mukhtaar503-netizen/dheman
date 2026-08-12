@@ -521,6 +521,7 @@ export interface QuotationPrefill {
     unit: string;
     unitPrice: number;
   }[];
+  existingQuotation: { id: string; quotationNo: string } | null;
 }
 
 export interface CompanySettings {

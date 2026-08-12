@@ -139,6 +139,10 @@ export default function NewQuotationPage() {
   const [siteInspectionId, setSiteInspectionId] = React.useState('');
   const [serviceRequestId, setServiceRequestId] = React.useState('');
   const [prefillInfo, setPrefillInfo] = React.useState<{ customer: Customer; serviceRequest: ServiceRequest } | null>(null);
+  const [existingQuotation, setExistingQuotation] = React.useState<{ id: string; quotationNo: string } | null>(null);
+  // Synchronous guard against a double-click firing two submits before React re-renders the
+  // disabled button state from mutation.isPending (which updates asynchronously).
+  const submittingRef = React.useRef(false);
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [lineItems, setLineItems] = React.useState<DraftLineItem[]>([]);
@@ -180,7 +184,12 @@ export default function NewQuotationPage() {
       setServiceRequestId(data.serviceRequest.id);
       setPrefillInfo({ customer: data.customer, serviceRequest: data.serviceRequest });
       setLineItems(data.suggestedLineItems.map((i) => ({ ...i })));
-      toast({ title: 'Loaded customer, service, and cost estimate from the inspection' });
+      setExistingQuotation(data.existingQuotation);
+      toast(
+        data.existingQuotation
+          ? { title: 'A quotation already exists for this site inspection.', variant: 'destructive' }
+          : { title: 'Loaded customer, service, and cost estimate from the inspection' },
+      );
     },
     onError: (error) => {
       toast({ title: 'Could not load inspection', description: error instanceof ApiError ? error.message : undefined, variant: 'destructive' });
@@ -189,6 +198,7 @@ export default function NewQuotationPage() {
 
   function handleSelectInspection(id: string) {
     setSiteInspectionId(id);
+    setExistingQuotation(null);
     prefillMutation.mutate(id);
   }
 
@@ -269,12 +279,14 @@ export default function NewQuotationPage() {
       return created;
     },
     onSuccess: (data, sendAfterCreate) => {
+      submittingRef.current = false;
       queryClient.invalidateQueries({ queryKey: ['quotations'] });
       queryClient.invalidateQueries({ queryKey: ['quotation-statistics'] });
       toast({ title: sendAfterCreate ? 'Quotation created and sent' : 'Quotation saved as draft' });
       router.push(`/quotations/${data.id}`);
     },
     onError: (error) => {
+      submittingRef.current = false;
       if (error instanceof SendAfterCreateError) {
         queryClient.invalidateQueries({ queryKey: ['quotations'] });
         queryClient.invalidateQueries({ queryKey: ['quotation-statistics'] });
@@ -286,15 +298,26 @@ export default function NewQuotationPage() {
         router.push(`/quotations/${error.quotationId}`);
         return;
       }
+      // A quotation for this inspection was created elsewhere between the prefill check and
+      // this submit (e.g. another tab, or another staff member) — surface the same "already
+      // exists" banner with a link to it instead of the raw 409/P2002 message.
+      if (error instanceof ApiError && error.status === 409 && error.details && typeof error.details === 'object' && 'existingQuotationId' in error.details) {
+        const details = error.details as { existingQuotationId: string; existingQuotationNo: string };
+        setExistingQuotation({ id: details.existingQuotationId, quotationNo: details.existingQuotationNo });
+        toast({ title: error.message, variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Could not create quotation', description: error instanceof ApiError ? error.message : undefined, variant: 'destructive' });
     },
   });
 
-  const canSubmit = !!serviceRequestId && lineItems.length > 0 && !hasLineItemErrors && !discountError && !vatError && !discountRequiresReason;
+  const canSubmit =
+    !!serviceRequestId && !existingQuotation && lineItems.length > 0 && !hasLineItemErrors && !discountError && !vatError && !discountRequiresReason;
 
   function handleSave(sendAfterCreate: boolean) {
     setSubmitAttempted(true);
-    if (!canSubmit) return;
+    if (!canSubmit || submittingRef.current) return;
+    submittingRef.current = true;
     mutation.mutate(sendAfterCreate);
   }
 
@@ -364,7 +387,16 @@ export default function NewQuotationPage() {
                 </div>
               )}
 
-              {serviceRequestId && (
+              {existingQuotation && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-sm text-destructive">
+                  <span>A quotation already exists for this site inspection.</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => router.push(`/quotations/${existingQuotation.id}`)}>
+                    View Quotation {existingQuotation.quotationNo}
+                  </Button>
+                </div>
+              )}
+
+              {serviceRequestId && !existingQuotation && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <Label htmlFor="quotationTitle">Quotation Title</Label>
