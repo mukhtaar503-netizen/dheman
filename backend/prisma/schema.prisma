@@ -774,6 +774,15 @@ model InspectionPhoto {
   inspection SiteInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 }
 
+// Backs generateReferenceNumber() (src/utils/numbering.ts) — one row per "PREFIX-YEAR" key
+// (e.g. "QT-2026"), atomically incremented via `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+// so concurrent creates can never be handed the same sequence number. Replaces the previous
+// count()-based scheme, which raced under concurrent requests (see the fix that added this).
+model ReferenceCounter {
+  key   String @id
+  value Int    @default(0)
+}
+
 model Quotation {
   id                   String          @id @default(uuid())
   quotationNo          String          @unique

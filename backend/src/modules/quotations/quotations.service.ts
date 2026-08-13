@@ -138,74 +138,70 @@ export async function createQuotation(actor: AuthUser, input: CreateQuotationInp
   const validityDays = input.validityDays ?? settings.quotationValidityDays;
   const validUntil = new Date(Date.now() + validityDays * 24 * 60 * 60_000);
 
-  // generateReferenceNumber counts existing rows rather than using a DB sequence, so two
-  // near-simultaneous creates (e.g. a double-submitted request) can compute the same
-  // quotationNo — the first insert wins and the second hits quotationNo's unique constraint.
-  // That's a transient numbering collision, not a real conflict, so it's retried with a fresh
-  // number instead of surfacing a raw P2002 to the user. A genuine siteInspectionId collision
-  // (the one-quotation-per-inspection rule, lost to a race against the check above) is not
-  // retried — it's translated into the same friendly "already exists" error.
-  const MAX_ATTEMPTS = 3;
-  let quotation: Prisma.QuotationGetPayload<{ include: { lineItems: true } }> | undefined;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const quotationNo = await generateReferenceNumber('QT', 'quotation');
-    try {
-      quotation = await prisma.quotation.create({
-        data: {
-          quotationNo,
-          serviceRequestId: input.serviceRequestId,
-          siteInspectionId: input.siteInspectionId,
-          customerId: serviceRequest.customerId,
-          title: input.title,
-          description: input.description,
-          materialCost,
-          laborCost,
-          transportationCost,
-          subtotal,
-          taxRatePercent: vatPercent,
-          taxAmount,
-          discountType: input.discountType,
-          discountValue: input.discountValue,
-          discountAmount,
-          discountReason: input.discountReason,
-          total,
-          validityDays,
-          validUntil,
-          notes: input.notes,
-          termsAndConditions: input.termsAndConditions,
-          createdById: actor.id,
-          lineItems: {
-            create: input.lineItems.map((item) => ({
-              serviceCategoryId: item.serviceCategoryId,
-              serviceId: item.serviceId,
-              category: item.category,
-              itemName: item.itemName,
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unitPrice: item.unitPrice,
-              subtotal: round2(item.quantity * item.unitPrice),
-            })),
-          },
-          auditLogs: { create: { action: 'CREATED', actorId: actor.id } },
-        },
-        include: { lineItems: true },
-      });
-      break;
-    } catch (err) {
-      if (isUniqueConstraintViolation(err, 'siteInspectionId')) {
-        // Lost the race against another request creating a Quotation for the same inspection.
-        await assertNoExistingQuotationForInspection(input.siteInspectionId!);
-        throw err; // assertNoExistingQuotationForInspection always throws when this fires; unreachable
-      }
-      if (isUniqueConstraintViolation(err, 'quotationNo') && attempt < MAX_ATTEMPTS) {
-        continue;
-      }
-      throw err;
-    }
-  }
+  // generateReferenceNumber now reserves the number atomically (see src/utils/numbering.ts),
+  // so two concurrent creates can never be handed the same quotationNo — no retry loop needed.
+  const quotationNo = await generateReferenceNumber('QT', 'quotation');
 
-  if (!quotation) throw HttpError.conflict('Could not generate a unique quotation number — please try again');
+  let quotation: Prisma.QuotationGetPayload<{ include: { lineItems: true } }>;
+  try {
+    quotation = await prisma.quotation.create({
+      data: {
+        quotationNo,
+        serviceRequestId: input.serviceRequestId,
+        siteInspectionId: input.siteInspectionId,
+        customerId: serviceRequest.customerId,
+        title: input.title,
+        description: input.description,
+        materialCost,
+        laborCost,
+        transportationCost,
+        subtotal,
+        taxRatePercent: vatPercent,
+        taxAmount,
+        discountType: input.discountType,
+        discountValue: input.discountValue,
+        discountAmount,
+        discountReason: input.discountReason,
+        total,
+        validityDays,
+        validUntil,
+        notes: input.notes,
+        termsAndConditions: input.termsAndConditions,
+        createdById: actor.id,
+        lineItems: {
+          create: input.lineItems.map((item) => ({
+            serviceCategoryId: item.serviceCategoryId,
+            serviceId: item.serviceId,
+            category: item.category,
+            itemName: item.itemName,
+            description: item.description,
+            quantity: item.quantity,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            subtotal: round2(item.quantity * item.unitPrice),
+          })),
+        },
+        auditLogs: { create: { action: 'CREATED', actorId: actor.id } },
+      },
+      include: { lineItems: true },
+    });
+  } catch (err) {
+    if (isUniqueConstraintViolation(err, 'siteInspectionId')) {
+      // Lost the race against another request creating a Quotation for the same inspection
+      // (both passed the assertNoExistingQuotationForInspection check above before either
+      // committed) — translate into the same friendly "already exists" error.
+      await assertNoExistingQuotationForInspection(input.siteInspectionId!);
+      throw err; // assertNoExistingQuotationForInspection always throws when this fires; unreachable
+    }
+    // Defense in depth: any other unexpected unique-constraint hit still gets a clean API
+    // error instead of a raw Prisma message leaking to the client.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw HttpError.conflict('Could not create the quotation because a conflicting record already exists.', {
+        target: err.meta?.target,
+      });
+    }
+    throw err;
+  }
 
   await recordAudit({ actorId: actor.id, action: 'CREATE', entityType: 'Quotation', entityId: quotation.id, after: quotation });
   return { quotation, requiresDiscountApproval: requiresApproval };
