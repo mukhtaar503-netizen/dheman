@@ -11,6 +11,8 @@ import { RecentActivity } from '@/components/dashboard/recent-activity';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { BRAND } from '@/lib/brand';
+import { surfaceClass, surfaceStyle } from '@/components/dashboard/surface';
 import type { DashboardSummary, DateRangePreset } from '@/types';
 
 const RANGE_OPTIONS: { value: DateRangePreset; label: string }[] = [
@@ -45,7 +47,7 @@ function todayLabel() {
 
 function PeriodSelector({ value, onChange }: { value: DateRangePreset; onChange: (v: DateRangePreset) => void }) {
   return (
-    <div role="tablist" aria-label="Date range" className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+    <div role="tablist" aria-label="Date range" className="inline-flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-0.5">
       {RANGE_OPTIONS.map((opt) => {
         const active = value === opt.value;
         return (
@@ -56,9 +58,10 @@ function PeriodSelector({ value, onChange }: { value: DateRangePreset; onChange:
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             className={cn(
-              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-              active ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40',
+              !active && 'text-white/60 hover:text-white',
             )}
+            style={active ? { backgroundColor: BRAND.orange, color: BRAND.navyDark } : undefined}
           >
             {opt.label}
           </button>
@@ -82,14 +85,15 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+      className={cn(surfaceClass, 'flex items-center gap-3 p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--stat-hover-border)]')}
+      style={{ ...surfaceStyle, '--stat-hover-border': `${BRAND.orange}66` } as React.CSSProperties}
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-        <Icon className="h-4 w-4" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${BRAND.orange}22`, color: BRAND.orange }}>
+        <Icon className="h-5 w-5" />
       </span>
       <div className="min-w-0">
-        <p className="text-xl font-semibold leading-none tracking-tight">{value}</p>
-        <p className="mt-1.5 truncate text-xs text-muted-foreground">{label}</p>
+        <p className="text-[26px] font-bold leading-none tracking-tight text-white">{value}</p>
+        <p className="mt-1.5 truncate text-[13px] text-white/60">{label}</p>
       </div>
     </Link>
   );
@@ -108,17 +112,17 @@ function BusinessOverview({ data }: { data: DashboardSummary }) {
   const hasRevenue = (data.monthlyRevenue ?? 0) > 0;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <h2 className="mb-2 text-sm font-semibold">Business Overview</h2>
-      <ul className="divide-y divide-border">
+    <div className={cn(surfaceClass, 'p-5')} style={surfaceStyle}>
+      <h2 className="mb-2 text-[18px] font-semibold text-white">Business Overview</h2>
+      <ul className="divide-y divide-white/10">
         {rows.map((row) => (
           <li key={row.label} className="flex items-center justify-between py-2 text-sm">
-            <span className="text-muted-foreground">{row.label}</span>
-            <span className="font-medium tabular-nums">{row.value}</span>
+            <span className="text-white/60">{row.label}</span>
+            <span className="font-medium tabular-nums text-white">{row.value}</span>
           </li>
         ))}
       </ul>
-      {!hasRevenue && <p className="pt-2 text-center text-xs text-muted-foreground">No financial data yet</p>}
+      {!hasRevenue && <p className="pt-2 text-center text-xs text-white/50">No financial data yet</p>}
     </div>
   );
 }
@@ -136,64 +140,66 @@ export default function DashboardPage() {
   const isTechnician = user?.role === 'TECHNICIAN';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{user ? `${greeting()}, ${user.fullName.split(' ')[0]}` : 'Dashboard'}</h1>
-          <p className="text-xs text-muted-foreground">Here&apos;s your business overview.</p>
+    <div className="-m-4 min-h-[calc(100vh-4rem)] p-4 sm:-m-6 sm:p-6 lg:p-8" style={{ backgroundColor: BRAND.navyDark }}>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white">{user ? `${greeting()}, ${user.fullName.split(' ')[0]}` : 'Dashboard'}</h1>
+            <p className="text-[13px] text-white/60">Here&apos;s your business overview.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-[13px] text-white/60">{todayLabel()}</p>
+            {!isTechnician && <PeriodSelector value={range} onChange={setRange} />}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-xs text-muted-foreground">{todayLabel()}</p>
-          {!isTechnician && <PeriodSelector value={range} onChange={setRange} />}
-        </div>
+
+        {isLoading && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-[76px] w-full rounded-2xl bg-white/5" />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && data && isTechnician && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {data.cards?.map((card) => (
+              <div key={card.key} className={cn(surfaceClass, 'p-4')} style={surfaceStyle}>
+                <p className="text-[26px] font-bold leading-none tracking-tight text-white">{card.value}</p>
+                <p className="mt-1.5 text-[13px] text-white/60">{card.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && data && !isTechnician && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard href="/customers" icon={Users} label="Customers" value={data.customers ?? 0} />
+            <StatCard href="/projects" icon={Briefcase} label="Active Projects" value={data.activeProjects ?? 0} />
+            <StatCard href="/service-requests" icon={ClipboardList} label="Pending Requests" value={data.pendingRequests ?? 0} />
+            <StatCard href="/quotations" icon={FileText} label="Pending Quotations" value={data.pendingQuotations ?? 0} />
+            <StatCard href="/invoices" icon={CreditCard} label="Pending Payments" value={data.pendingPayments ?? 0} />
+            <StatCard href="/invoices" icon={DollarSign} label={REVENUE_LABEL[range]} value={currency(data.monthlyRevenue ?? 0)} />
+          </div>
+        )}
+
+        {!isTechnician && (
+          <ErrorBoundary fallbackTitle="Couldn't load quick actions">
+            <QuickActions />
+          </ErrorBoundary>
+        )}
+
+        {!isLoading && data && !isTechnician && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            {data.recentActivity && (
+              <ErrorBoundary fallbackTitle="Couldn't load recent activity">
+                <RecentActivity items={data.recentActivity} />
+              </ErrorBoundary>
+            )}
+            <BusinessOverview data={data} />
+          </div>
+        )}
       </div>
-
-      {isLoading && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[68px] w-full rounded-xl" />
-          ))}
-        </div>
-      )}
-
-      {!isLoading && data && isTechnician && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {data.cards?.map((card) => (
-            <div key={card.key} className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xl font-semibold leading-none tracking-tight">{card.value}</p>
-              <p className="mt-1.5 text-xs text-muted-foreground">{card.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!isLoading && data && !isTechnician && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard href="/customers" icon={Users} label="Customers" value={data.customers ?? 0} />
-          <StatCard href="/projects" icon={Briefcase} label="Active Projects" value={data.activeProjects ?? 0} />
-          <StatCard href="/service-requests" icon={ClipboardList} label="Pending Requests" value={data.pendingRequests ?? 0} />
-          <StatCard href="/quotations" icon={FileText} label="Pending Quotations" value={data.pendingQuotations ?? 0} />
-          <StatCard href="/invoices" icon={CreditCard} label="Pending Payments" value={data.pendingPayments ?? 0} />
-          <StatCard href="/invoices" icon={DollarSign} label={REVENUE_LABEL[range]} value={currency(data.monthlyRevenue ?? 0)} />
-        </div>
-      )}
-
-      {!isTechnician && (
-        <ErrorBoundary fallbackTitle="Couldn't load quick actions">
-          <QuickActions />
-        </ErrorBoundary>
-      )}
-
-      {!isLoading && data && !isTechnician && (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {data.recentActivity && (
-            <ErrorBoundary fallbackTitle="Couldn't load recent activity">
-              <RecentActivity items={data.recentActivity} />
-            </ErrorBoundary>
-          )}
-          <BusinessOverview data={data} />
-        </div>
-      )}
     </div>
   );
 }

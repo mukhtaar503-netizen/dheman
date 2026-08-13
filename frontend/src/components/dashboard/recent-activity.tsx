@@ -1,6 +1,8 @@
 'use client';
 
 import { LogIn, UserPlus, FileText, CheckCircle2, Wallet } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { surfaceClass, surfaceStyle } from './surface';
 import type { ActivityItem, ActivityType } from '@/types';
 
 const ICONS: Record<ActivityType, React.ComponentType<{ className?: string }>> = {
@@ -41,21 +43,21 @@ export function RecentActivity({ items }: { items: ActivityItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <h2 className="mb-2 text-sm font-semibold">Recent Activity</h2>
-      <ul className="divide-y divide-border">
+    <div className={cn(surfaceClass, 'p-5')} style={surfaceStyle}>
+      <h2 className="mb-2 text-[18px] font-semibold text-white">Recent Activity</h2>
+      <ul className="divide-y divide-white/10">
         {items.map((event) => {
           const Icon = ICONS[event.type];
           const { title, secondary } = splitDescription(event.description);
           return (
             <li key={`${event.type}-${event.id}`} className="flex items-start gap-2.5 py-2">
-              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
-                <Icon className="h-3 w-3" />
+              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10">
+                <Icon className="h-3 w-3 text-white/80" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm leading-tight">{title}</p>
-                {secondary && <p className="truncate text-xs text-muted-foreground">{secondary}</p>}
-                <p className="text-[11px] text-muted-foreground/70">{relativeTime(event.at)}</p>
+                <p className="truncate text-sm leading-tight text-white">{title}</p>
+                {secondary && <p className="truncate text-xs text-white/60">{secondary}</p>}
+                <p className="text-[11px] text-white/40">{relativeTime(event.at)}</p>
               </div>
             </li>
           );

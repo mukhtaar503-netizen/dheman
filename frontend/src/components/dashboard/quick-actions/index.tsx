@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { UserPlus, ClipboardPlus, ClipboardCheck, FileText, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BRAND } from '@/lib/brand';
+import { surfaceClass, surfaceStyle } from '../surface';
 
 // These modal forms are opened rarely from the dashboard — dynamic-importing them keeps their
 // code (and react-hook-form usage) out of the main dashboard bundle until actually clicked.
@@ -25,23 +26,18 @@ const RecordPaymentDialog = dynamic(() => import('./record-payment-dialog').then
   loading: () => <ActionButton icon={Wallet} label="Record Payment" />,
 });
 
-// Button colors are CSS custom properties fed from BRAND (src/lib/brand.ts) — the same fixed
-// navy/orange palette the sidebar uses — so this bar reads as "the same design system" as the
-// rest of the shell instead of introducing its own colors. Hover states reuse BRAND.navyLight
-// (secondary) or a plain opacity dip (primary) rather than inventing new shades.
+// The panel itself sits on BRAND.navy (see surface.ts) — one step lighter than the page's
+// BRAND.navyDark background — so buttons need a further lightening step to stay visible against
+// it, rather than reusing BRAND.navy again. Secondary buttons use a plain white overlay (the
+// same technique the sidebar already uses for its hover/active states); primary buttons use the
+// brand accent. Hover states stay within that same layering instead of inventing new colors.
 const pillBase =
   'inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border px-4 text-sm font-medium transition-all duration-150 ease-out hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-offset-1 sm:w-auto sm:justify-start';
 
 const secondaryPill = cn(
   pillBase,
-  'border-[var(--qa-border)] bg-[var(--qa-bg)] text-white hover:bg-[var(--qa-bg-hover)] hover:border-[var(--qa-border-hover)] focus-visible:ring-white/40',
+  'border-white/10 bg-white/5 text-white hover:border-white/20 hover:bg-white/10 focus-visible:ring-white/40',
 );
-const secondaryStyle = {
-  '--qa-bg': BRAND.navy,
-  '--qa-bg-hover': BRAND.navyLight,
-  '--qa-border': `${BRAND.orange}2E`,
-  '--qa-border-hover': `${BRAND.orange}4D`,
-} as React.CSSProperties;
 
 // New Site Inspection and New Quotation are the primary next steps in the delivery workflow,
 // so they get the brand accent fill to stand out — dark navy text/icon for contrast against
@@ -60,7 +56,7 @@ const ActionButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttribu
       ref={ref}
       type="button"
       className={cn(prominent ? primaryPill : secondaryPill, className)}
-      style={{ ...(prominent ? primaryStyle : secondaryStyle), ...style }}
+      style={{ ...(prominent ? primaryStyle : undefined), ...style }}
       {...props}
     >
       <Icon className="h-5 w-5 shrink-0" />
@@ -72,7 +68,7 @@ ActionButton.displayName = 'ActionButton';
 
 function ActionLink({ href, icon: Icon, label, prominent }: ActionVisuals & { href: string }) {
   return (
-    <Link href={href} className={prominent ? primaryPill : secondaryPill} style={prominent ? primaryStyle : secondaryStyle}>
+    <Link href={href} className={prominent ? primaryPill : secondaryPill} style={prominent ? primaryStyle : undefined}>
       <Icon className="h-5 w-5 shrink-0" />
       {label}
     </Link>
@@ -81,7 +77,7 @@ function ActionLink({ href, icon: Icon, label, prominent }: ActionVisuals & { hr
 
 export function QuickActions() {
   return (
-    <div className="rounded-2xl border p-5" style={{ backgroundColor: BRAND.navyDark, borderColor: `${BRAND.orange}26` }}>
+    <div className={cn(surfaceClass, 'p-5')} style={surfaceStyle}>
       <h2 className="mb-4 text-[18px] font-semibold text-white">Quick Actions</h2>
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
         <CreateCustomerDialog trigger={<ActionButton icon={UserPlus} label="New Customer" />} />
